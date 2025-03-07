@@ -58,7 +58,6 @@
             this.selectedTextElement = null;
             this.isLoading = false;
             this.svgTexts = [];
-            this.isLoading = false;
             this.designLayers = [];
 
             // Initialize designLayers for each view

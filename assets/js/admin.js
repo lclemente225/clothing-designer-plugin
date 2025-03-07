@@ -20,6 +20,7 @@
 
         initMediaUploaders();
         initTemplateActions();
+        initTemplateViews();
         initDesignActions();
         initFormHandling();
         initShortcodeGeneration();
@@ -449,7 +450,6 @@
     // Initialize when document is ready
     $(document).ready(function() {
         initClothingDesignerAdmin();
-        initTemplateViews();
     });
 
 })(jQuery);
