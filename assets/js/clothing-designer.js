@@ -58,7 +58,7 @@
             this.selectedTextElement = null;
             this.isLoading = false;
             this.svgTexts = [];
-            this.designLayers = [];
+            this.designLayers = {};
 
             // Initialize designLayers for each view
             ['front', 'back', 'left', 'right'].forEach(view => {
@@ -253,7 +253,8 @@
                 },
                 error: () => {
                     this.hideLoading();
-                    alert(cd_vars.messages.upload_error);
+                    console.error('AJAX error:', status, error);
+                    alert(cd_vars.messages.upload_error + (error ? ': ' + error : ''));
                 }
             });
 
@@ -911,7 +912,7 @@
          */
         updateSVGText(textId, newText) {
             if (!this.template || !this.template.content) {
-                console.warn('Cannot update SVG text: template or content is missing')
+                console.warn('Cannot update SVG text: template or content is missing');
                 return;
             }
             // Validate inputs
@@ -1004,7 +1005,7 @@
                     `);
 
                     textList.append(textItem);
-
+                    textItem.find('.cd-btn-edit-svg-text').off('click')
                     // Edit button click
                     textItem.find('.cd-btn-edit-svg-text').on('click', () => {
                         this.editSVGText(text);
@@ -1012,6 +1013,8 @@
                 });
             }
 
+            // Unbind existing listeners first
+            this.container.find('.cd-btn-add-text').off('click');
             // Rebind event listeners
             this.container.find('.cd-btn-add-text').on('click', () => {
                 const text = this.container.find('.cd-text-input').val();
@@ -1020,7 +1023,7 @@
                     this.container.find('.cd-text-input').val('');
                 }
             });
-
+            
             // Enter key for text input
             this.container.find('.cd-text-input').on('keypress', (e) => {
                 if (e.which === 13) {
@@ -1141,11 +1144,18 @@
             if (!confirm(cd_vars.messages.confirm_delete)) {
                 return;
             }
+            
+            // Only search in current view
+            if (!this.currentView || !this.designLayers[this.currentView]) {
+                return;
+            }
 
-            const layerIndex = this.designLayers.findIndex(layer => layer.id === layerId);
+            const layers = this.designLayers[this.currentView];
+            const layerIndex = layers.findIndex(layer => layer.id === layerId);
+            
             if (layerIndex === -1) return;
 
-            const layer = this.designLayers[layerIndex];
+            const layer = layers[layerIndex];
 
             // Remove from canvas
             this.canvas.remove(layer.object);
@@ -1168,8 +1178,10 @@
             }
             
             // Save current layers
-            this.saveCurrentViewLayers();
-            
+             // Only save current layers if we have a valid current view
+            if (this.currentView && this.templateViews[this.currentView]) {
+                this.saveCurrentViewLayers();
+            }
             // Update active button
             this.container.find('.cd-view-btn').removeClass('active');
             this.container.find(`.cd-view-btn[data-view="${viewType}"]`).addClass('active');
@@ -1192,8 +1204,14 @@
             const template = this.templateViews[viewType];
             
             if (template.file_type === 'svg') {
-                fabric.loadSVGFromString(template.content, (objects, options) => {
-                    this.renderTemplateView(objects, template);
+                    fabric.loadSVGFromString(template.content, (objects, options) => {
+                    // Extract SVG dimensions from viewBox
+                    let viewBox = [0, 0, 300, 150];
+                    const viewBoxMatch = template.content.match(/viewBox=['"]([^'"]+)['"]/);
+                    if (viewBoxMatch && viewBoxMatch[1]) {
+                        viewBox = viewBoxMatch[1].split(/[\s,]+/).map(Number);
+                    }
+                    this.renderTemplateView(objects, template, viewBox);
                 });
             } else if (['png', 'jpg', 'jpeg'].includes(template.file_type)) {
                 fabric.Image.fromURL(template.file_url, (img) => {
@@ -1221,10 +1239,69 @@
             });
               
             // Set dimensions and position
-            // Similar to your existing loadSVGTemplate method
+            const viewBoxWidth = viewBox[2] - viewBox[0];
+            const viewBoxHeight = viewBox[3] - viewBox[1];
+            const scaleX = this.canvas.width / viewBoxWidth;
+            const scaleY = this.canvas.height / viewBoxHeight;
+            const scale = Math.min(scaleX, scaleY) * 0.9;
+            
+            templateGroup.set({
+                scaleX: scale,
+                scaleY: scale,
+                left: this.canvas.width / 2,
+                top: this.canvas.height / 2,
+                originX: 'center',
+                originY: 'center'
+            });
             
             // Add to canvas
             this.canvas.add(templateGroup);
+            
+            // Load saved layers for this view
+            this.loadViewLayers(this.currentView);
+            
+            this.hideLoading();
+        }
+
+        /**
+         * Render template image view
+         *
+         * @param {fabric.Image} img Image object
+         * @param {Object} template Template data
+         */
+        renderTemplateImageView(img, template) {
+            // Set the image as the template
+            img.set({
+                selectable: false,
+                evented: false,
+                hasControls: false,
+                hasBorders: false,
+                lockMovementX: true,
+                lockMovementY: true,
+                lockRotation: true,
+                lockScalingX: true,
+                lockScalingY: true,
+                lockSkewingX: true,
+                lockSkewingY: true,
+                name: 'template'
+            });
+
+            // Calculate scale to fit canvas
+            const scaleX = this.canvas.width / img.width;
+            const scaleY = this.canvas.height / img.height;
+            const scale = Math.min(scaleX, scaleY) * 0.9;
+
+            img.set({
+                scaleX: scale,
+                scaleY: scale,
+                left: this.canvas.width / 2,
+                top: this.canvas.height / 2,
+                originX: 'center',
+                originY: 'center'
+            });
+
+            // Add to canvas
+            this.canvas.add(img);
             
             // Load saved layers for this view
             this.loadViewLayers(this.currentView);
@@ -1546,7 +1623,7 @@
                 error: (xhr, status, error) => {
                     this.hideLoading();
                     console.error('AJAX error saving design:', status, error);
-                    alert(cd_vars.messages.save_error + (status ? ': ' + status : ''));
+                    alert(cd_vars.messages.save_error + (status ? ': ' + status + ',' + error : ''));
                 }
             });
         }      
@@ -1590,10 +1667,14 @@
         
         // New method to save individual design elements with large content
         saveDesignElements(designId) {
-            // Find elements with SVG content
-            const svgElements = this.designLayers.filter(layer => 
-                layer.type === 'svg' && layer.svg_content
-            );
+            let svgElements = [];
+            // Gather SVG elements from all views
+            Object.keys(this.designLayers).forEach(viewType => {
+                const viewSvgElements = this.designLayers[viewType].filter(layer => 
+                    layer.type === 'svg' && layer.svg_content
+                );
+                svgElements = svgElements.concat(viewSvgElements);
+            });
             
             // If no SVG elements, we're done
             if (svgElements.length === 0) {
