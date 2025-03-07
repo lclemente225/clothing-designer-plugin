@@ -1,0 +1,501 @@
+/**
+ * Clothing Designer Styles
+ */
+
+/* Main container */
+.cd-designer-container {
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    color: #333;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+/* Designer header */
+.cd-designer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background-color: #f8f8f8;
+    border-bottom: 1px solid #ddd;
+}
+
+.cd-designer-title {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.cd-designer-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* Designer body */
+.cd-designer-body {
+    display: flex;
+    flex: 1;
+    min-height: 400px;
+}
+
+/* Sidebar */
+.cd-sidebar {
+    width: 260px;
+    background-color: #f5f5f5;
+    border-right: 1px solid #ddd;
+    overflow-y: auto;
+}
+
+/* Design area */
+.cd-design-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.cd-canvas-container {
+    width: 100%;
+    height: 100%;
+}
+
+/* Tools */
+.cd-tool-panel {
+    background-color: #fff;
+    margin: 10px;
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
+.cd-tool-panel h3 {
+    margin: 0;
+    padding: 12px 15px;
+    font-size: 14px;
+    font-weight: 600;
+    background-color: #f8f8f8;
+    border-bottom: 1px solid #eee;
+}
+
+.cd-tool-content {
+    padding: 15px;
+}
+.cd-svg-text-editor {
+    margin-top: 20px;
+    padding: 10px;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.cd-svg-text-editor h4 {
+    margin: 0 0 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #ddd;
+}
+
+.cd-svg-text-item {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.cd-svg-text-content {
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.cd-svg-text-edit input {
+    width: 100%;
+    margin-bottom: 5px;
+    padding: 5px;
+}
+
+.cd-svg-text-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+/* clothing side viewer */
+.cd-view-selector {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 15px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    padding: 5px;
+}
+
+.cd-view-btn {
+    padding: 8px 15px;
+    margin: 0 5px;
+    background: #e0e0e0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.cd-view-btn.active {
+    background: #4a90e2;
+    color: white;
+}
+
+/* Admin styles for template views */
+.cd-view-tabs {
+    display: flex;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 15px;
+}
+
+.cd-view-tab {
+    padding: 8px 15px;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-bottom: none;
+    margin-right: 5px;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+}
+
+.cd-view-tab.active {
+    background: white;
+    border-bottom-color: white;
+    margin-bottom: -1px;
+    position: relative;
+}
+
+.cd-view-panel {
+    display: none;
+    padding: 15px;
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    margin-bottom: 15px;
+}
+
+.cd-view-panel.active {
+    display: block;
+}
+
+.cd-view-preview {
+    margin-top: 10px;
+}
+
+.cd-view-preview img {
+    max-width: 200px;
+    max-height: 200px;
+    border: 1px solid #ddd;
+}
+
+/* Form elements */
+.cd-form-group {
+    margin-bottom: 15px;
+}
+
+.cd-form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.cd-text-input,
+.cd-file-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.cd-file-input {
+    display: none;
+}
+
+.cd-btn {
+    padding: 8px 12px;
+    background-color: #f8f8f8;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.cd-btn:hover {
+    background-color: #f0f0f0;
+    border-color: #ccc;
+}
+
+.cd-btn-upload,
+.cd-btn-add-text {
+    margin-top: 5px;
+    width: 100%;
+}
+
+.cd-btn-save {
+    background-color: #2271b1;
+    color: #fff;
+    border-color: #2271b1;
+}
+
+.cd-btn-save:hover {
+    background-color: #135e96;
+    border-color: #135e96;
+}
+
+.cd-btn-reset {
+    background-color: #f8f8f8;
+    color: #555;
+}
+
+.cd-btn-reset:hover {
+    background-color: #f0f0f0;
+    color: #d63638;
+}
+
+/* Properties */
+.cd-property {
+    margin-bottom: 12px;
+}
+
+.cd-property label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 13px;
+}
+
+.cd-color-picker {
+    width: 100%;
+    height: 30px;
+    padding: 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.cd-size-slider,
+.cd-rotation-slider {
+    width: 100%;
+}
+
+/* SVG text elements */
+.cd-svg-text-list {
+    margin-top: 15px;
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+}
+
+.cd-svg-text-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 3px;
+    margin-bottom: 5px;
+}
+
+.cd-svg-text-content {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.cd-btn-edit-svg-text {
+    font-size: 12px;
+    padding: 4px 8px;
+    white-space: nowrap;
+}
+
+/* Layers */
+.cd-layers-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.cd-layer-item {
+    padding: 8px 10px;
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 3px;
+    margin-bottom: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cd-layer-item:hover {
+    background-color: #f0f0f0;
+}
+
+.cd-layer-item.active {
+    background-color: #e6f2f8;
+    border-color: #c5e0ef;
+}
+
+.cd-layer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cd-layer-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.cd-layer-controls {
+    display: flex;
+    gap: 5px;
+}
+
+.cd-btn-layer-up,
+.cd-btn-layer-down,
+.cd-btn-layer-delete {
+    padding: 2px 5px;
+    font-size: 12px;
+    background-color: transparent;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+}
+
+.cd-btn-layer-delete:hover {
+    color: #d63638;
+    border-color: #d63638;
+}
+
+/* Loading */
+.cd-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.cd-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #2271b1;
+    border-radius: 50%;
+    animation: cd-spin 1s linear infinite;
+}
+
+.cd-loading-text {
+    margin-top: 15px;
+    font-size: 16px;
+    color: #333;
+}
+
+@keyframes cd-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Error message */
+.cd-error-message {
+    padding: 20px;
+    text-align: center;
+    color: #d63638;
+}
+
+.cd-error-message p {
+    font-size: 16px;
+    margin: 0;
+}
+
+/* Modal dialog */
+.cd-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.cd-modal-content {
+    background-color: #fff;
+    border-radius: 5px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+.cd-modal-header {
+    padding: 15px 20px;
+    background-color: #f8f8f8;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cd-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.cd-modal-close {
+    font-size: 24px;
+    cursor: pointer;
+    color: #666;
+}
+
+.cd-modal-close:hover {
+    color: #333;
+}
+
+.cd-modal-body {
+    padding: 20px;
+}
+
+.cd-modal-footer {
+    padding: 15px 20px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .cd-designer-body {
+        flex-direction: column;
+    }
+    
+    .cd-sidebar {
+        width: 100%;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    .cd-tool-panel {
+        margin: 5px;
+    }
+}
