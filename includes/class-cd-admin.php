@@ -58,6 +58,8 @@ class CD_Admin {
         add_action('wp_ajax_cd_delete_template', array($this, 'ajax_delete_template'));
         add_action('wp_ajax_cd_delete_design', array($this, 'ajax_delete_design'));
         add_action('wp_ajax_cd_get_templates', array($this, 'ajax_get_templates'));
+        add_action('wp_ajax_cd_get_template_views', array($this, 'ajax_get_template_views'));
+        add_action('wp_ajax_nopriv_cd_get_template_views', array($this, 'ajax_get_template_views'));
     }
     
     /**
@@ -386,16 +388,24 @@ class CD_Admin {
         // Check if editing existing template
         $template_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
         $template = null;
+        $template_views = array();
         
         if ($template_id > 0) {
             global $wpdb;
             $templates_table = $wpdb->prefix . 'cd_templates';
             $template = $wpdb->get_row($wpdb->prepare("SELECT * FROM $templates_table WHERE id = %d", $template_id));
+            if($template){
+                $template_views_table = $wpdb->prefix . 'cd_template_views';
+                $template_views_results = $wpdb->get_results($wpdb->prepare("SELECT * FROM $template_views_table WHERE template_id = %d", $template_id));
+                foreach ($template_views_results as $view) {
+                    $template_views[$view->view_type] = $view;
+                }
+            }
         }
         
         $title = $template ? __('Edit Template', 'clothing-designer') : __('Add New Template', 'clothing-designer');
-        
         ?>
+
         <div class="wrap">
             <h1><?php echo esc_html($title); ?></h1>
             
@@ -434,17 +444,29 @@ class CD_Admin {
                         </div> -->
                         
                         <div class="cd-view-content">
-                            <?php foreach (['front', 'back', 'left', 'right'] as $view_type) : 
-                                $view_id = isset($template_views[$view_type]) ? $template_views[$view_type]->id : 0;
-                                $view_file_url = isset($template_views[$view_type]) ? $template_views[$view_type]->file_url : '';
-                                $view_file_type = isset($template_views[$view_type]) ? $template_views[$view_type]->file_type : '';
-                                $is_active = $view_type === 'front' ? 'active' : '';
+                            <?php
+                                foreach (['front', 'back', 'left', 'right'] as $view_type) : 
+                                    $view_id = isset($template_views[$view_type]) ? $template_views[$view_type]->id : 0;
+                                    $view_file_url = isset($template_views[$view_type]) ? $template_views[$view_type]->file_url : '';
+                                    $view_file_type = isset($template_views[$view_type]) ? $template_views[$view_type]->file_type : '';
+                                    $is_active = $view_type === 'front' ? 
+                                    'active' : '';
                             ?>
                             <div class="cd-view-panel <?php echo $is_active; ?>" data-view="<?php echo $view_type; ?>">
-                                <input type="hidden" name="template_views[<?php echo $view_type; ?>][id]" value="<?php echo $view_id; ?>">
+                                <input type="hidden" 
+                                    name="template_views[<?php echo $view_type; ?>][id]" 
+                                    value="<?php echo $view_id; ?>"
+                                >
                                 <div class="cd-file-upload-container">
-                                    <input type="text" name="template_views[<?php echo $view_type; ?>][file_url]" value="<?php echo esc_attr($view_file_url); ?>" readonly <?php echo $view_type === 'front' ? 'required' : ''; ?>>
-                                    <button type="button" class="button cd-upload-view" data-view="<?php echo $view_type; ?>"><?php echo __('Upload', 'clothing-designer'); ?></button>
+                                    <input type="text" 
+                                        name="template_views[<?php echo $view_type; ?>][file_url]" 
+                                        value="<?php echo esc_attr($view_file_url); ?>" readonly 
+                                    <?php echo $view_type === 'front' ? 'required' : ''; ?>>
+                                    <button type="button" 
+                                        class="button cd-upload-view" 
+                                        data-view="<?php echo $view_type; ?>">
+                                        <?php echo __('Upload', 'clothing-designer'); ?>
+                                    </button>
                                 </div>
                                 <p class="description">
                                     <?php echo $view_type === 'front' 
@@ -454,7 +476,10 @@ class CD_Admin {
                                 </p>
                                 <?php if (!empty($view_file_url)) : ?>
                                 <div class="cd-view-preview">
-                                    <img src="<?php echo esc_url($view_file_url); ?>" alt="<?php echo sprintf(__('%s view', 'clothing-designer'), ucfirst($view_type)); ?>">
+                                    <img 
+                                        src="<?php echo esc_url($view_file_url); ?>" 
+                                        alt="<?php echo sprintf(__('%s view', 'clothing-designer'), ucfirst($view_type)); ?>"
+                                    >
                                 </div>
                                 <?php endif; ?>
                             </div>
@@ -468,18 +493,31 @@ class CD_Admin {
                     <div class="cd-thumbnail-container">
                         <div class="cd-thumbnail-preview">
                             <?php if ($template && !empty($template->thumbnail_url)) : ?>
-                                <img src="<?php echo esc_url($template->thumbnail_url); ?>" alt="<?php echo __('Thumbnail Preview', 'clothing-designer'); ?>">
+                                <img src="<?php echo esc_url($template->thumbnail_url); ?>" 
+                                    alt="<?php echo __('Thumbnail Preview', 'clothing-designer'); ?>"
+                                >
                             <?php else : ?>
-                                <span class="cd-no-thumbnail"><?php echo __('No thumbnail selected', 'clothing-designer'); ?></span>
+                                <span class="cd-no-thumbnail">
+                                    <?php echo __('No thumbnail selected', 'clothing-designer'); ?>
+                                </span>
                             <?php endif; ?>
                         </div>
-                        <input type="hidden" id="template-thumbnail" name="thumbnail_url" value="<?php echo $template ? esc_attr($template->thumbnail_url) : ''; ?>">
-                        <button type="button" class="button cd-upload-thumbnail"><?php echo __('Upload Thumbnail', 'clothing-designer'); ?></button>
+                        <input type="hidden" 
+                            id="template-thumbnail" 
+                            name="thumbnail_url" 
+                            value="<?php echo $template ? esc_attr($template->thumbnail_url) : ''; ?>"
+                        >
+                        <button type="button" 
+                            class="button cd-upload-thumbnail">
+                            <?php echo __('Upload Thumbnail', 'clothing-designer'); ?>
+                        </button>
                     </div>
                 </div>
                 
                 <div class="cd-form-field">
-                    <label for="template-status"><?php echo __('Status', 'clothing-designer'); ?></label>
+                    <label for="template-status">
+                        <?php echo __('Status', 'clothing-designer'); ?>
+                    </label>
                     <select id="template-status" name="status">
                         <option value="publish" <?php selected($template ? $template->status : 'publish', 'publish'); ?>><?php echo __('Published', 'clothing-designer'); ?></option>
                         <option value="draft" <?php selected($template ? $template->status : 'publish', 'draft'); ?>><?php echo __('Draft', 'clothing-designer'); ?></option>
@@ -681,6 +719,55 @@ class CD_Admin {
         
         wp_send_json_success(array('templates' => $templates));
     }
+    /**
+     * Ajax get template views.
+     */
+    public function ajax_get_template_views() {
+        // Check nonce
+        check_ajax_referer(CD_AJAX_NONCE, 'nonce');
+        
+        $template_id = isset($_POST['template_id']) ? intval($_POST['template_id']) : 0;
+        
+        if ($template_id <= 0) {
+            wp_send_json_error(array('message' => __('Invalid template ID', 'clothing-designer')));
+            return;
+        }
+        
+        global $wpdb;
+        $templates_table = $wpdb->prefix . 'cd_templates';
+        $template_views_table = $wpdb->prefix . 'cd_template_views';
+        
+        // Get the template
+        $template = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $templates_table WHERE id = %d",
+            $template_id
+        ));
+        
+        if (!$template) {
+            wp_send_json_error(array('message' => __('Template not found', 'clothing-designer')));
+            return;
+        }
+        
+        // Get template views
+        $views = array();
+        $template_views_results = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM $template_views_table WHERE template_id = %d",
+            $template_id
+        ));
+        
+        foreach ($template_views_results as $view) {
+            $views[$view->view_type] = array(
+                'id' => $view->id,
+                'file_url' => $view->file_url,
+                'file_type' => $view->file_type
+            );
+        }
+        
+        wp_send_json_success(array(
+            'template' => $template,
+            'views' => $views
+        ));
+    }
 
     /**
      * Ajax save template.
@@ -708,8 +795,14 @@ class CD_Admin {
         $template_views = isset($_POST['template_views']) ? $_POST['template_views'] : array();
     
         // Validate data
-        if (empty($title) || empty($file_url)) {
-            wp_send_json_error(array('message' => __('Title and template file are required', 'clothing-designer')));
+        if (empty($title)) {
+            wp_send_json_error(array('message' => __('Title is required', 'clothing-designer')));
+            return;
+        }
+        
+        // Validate that front view is provided
+        if (empty($template_views['front']) || empty($template_views['front']['file_url'])) {
+            wp_send_json_error(array('message' => __('Front view is required', 'clothing-designer')));
             return;
         }
         
@@ -756,27 +849,39 @@ class CD_Admin {
             $template_id = $wpdb->insert_id;
             $message = __('Template added successfully', 'clothing-designer');
         }
-
+    
         // Handle template views
         if ($result !== false && !empty($template_views)) {
+            // Get allowed file types from settings
+            $options = get_option('cd_options');
+            $allowed_file_types = isset($options['allowed_file_types']) ? $options['allowed_file_types'] : array('svg', 'png', 'jpg', 'jpeg', 'ai');
+    
             foreach ($template_views as $view_type => $view_data) {
                 $view_id = isset($view_data['id']) ? intval($view_data['id']) : 0;
                 $view_file_url = isset($view_data['file_url']) ? esc_url_raw($view_data['file_url']) : '';
                 
-                // Skip if no file URL (except for front which is required)
+                // Skip if no file URL (except for front which is required - already checked above)
                 if (empty($view_file_url)) {
-                    if ($view_type === 'front') {
-                        wp_send_json_error(array('message' => __('Front view is required', 'clothing-designer')));
+                    continue;
+                }
+                
+                // Verify file type if it's a local file
+                $upload_dir = wp_upload_dir();
+                $file_path = str_replace($upload_dir['baseurl'], $upload_dir['basedir'], $view_file_url);
+                
+                if (file_exists($file_path)) {
+                    $verification_result = $this->verify_file_type($file_path, $allowed_file_types);
+                    if ($verification_result !== true) {
+                        wp_send_json_error(array('message' => $verification_result));
                         return;
                     }
-                    continue;
                 }
                 
                 $view_file_type = pathinfo($view_file_url, PATHINFO_EXTENSION);
                 
                 if ($view_id > 0) {
                     // Update existing view
-                    $wpdb->update(
+                    $update_result = $wpdb->update(
                         $template_views_table,
                         array(
                             'file_url' => $view_file_url,
@@ -786,9 +891,17 @@ class CD_Admin {
                         array('%s', '%s'),
                         array('%d')
                     );
+                    
+                    if ($update_result === false) {
+                        wp_send_json_error(array(
+                            'message' => sprintf(__('Failed to update %s view', 'clothing-designer'), $view_type),
+                            'error' => $wpdb->last_error
+                        ));
+                        return;
+                    }
                 } else {
                     // Insert new view
-                    $wpdb->insert(
+                    $insert_result = $wpdb->insert(
                         $template_views_table,
                         array(
                             'template_id' => $template_id,
@@ -798,6 +911,14 @@ class CD_Admin {
                         ),
                         array('%d', '%s', '%s', '%s')
                     );
+                    
+                    if ($insert_result === false) {
+                        wp_send_json_error(array(
+                            'message' => sprintf(__('Failed to add %s view', 'clothing-designer'), $view_type),
+                            'error' => $wpdb->last_error
+                        ));
+                        return;
+                    }
                 }
             }
         }
@@ -808,9 +929,13 @@ class CD_Admin {
                 'template_id' => $template_id
             ));
         } else {
-            wp_send_json_error(array('message' => __('Failed to save template', 'clothing-designer')));
+            wp_send_json_error(array(
+                'message' => __('Failed to save template. Database error occurred.', 'clothing-designer'),
+                'error' => $wpdb->last_error
+            ));
         }
     }
+
     /**
      * Ajax delete design.
      */
@@ -885,7 +1010,14 @@ class CD_Admin {
         
         global $wpdb;
         $templates_table = $wpdb->prefix . 'cd_templates';
-        
+        $template_views_table = $wpdb->prefix . 'cd_template_views';
+
+        $wpdb->delete(
+            $template_views_table,
+            array('template_id' => $template_id),
+            array('%d')
+        );
+
         $result = $wpdb->delete(
             $templates_table,
             array('id' => $template_id),
