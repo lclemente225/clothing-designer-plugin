@@ -302,6 +302,8 @@
                     this.showError(cd_vars.messages.error_loading_template);
                 }
             });
+            
+            this.loadTemplateViews();
         }
 
         /**
@@ -532,8 +534,12 @@
                 this.canvas.add(svgGroup);
                 this.canvas.renderAll();
 
+                if (!this.designLayers[this.currentView]) {
+                    this.designLayers[this.currentView] = [];
+                }
+
                 // Add to design layers
-                this.designLayers.push({
+                this.designLayers[this.currentView].push({
                     id: element.id || this.generateId(),
                     name: element.name || 'SVG Element',
                     type: 'svg',
@@ -571,7 +577,7 @@
                 this.canvas.renderAll();
 
                 // Add to design layers
-                this.designLayers.push({
+                this.designLayers[this.currentView].push({
                     id: element.id || this.generateId(),
                     name: element.name || 'Image Element',
                     type: 'image',
@@ -607,7 +613,7 @@
             this.canvas.renderAll();
 
             // Add to design layers
-            this.designLayers.push({
+            this.designLayers[this.currentView].push({
                 id: element.id || this.generateId(),
                 name: element.name || element.text || 'Text Element',
                 type: 'text',
@@ -644,7 +650,7 @@
 
                 // Add to design layers
                 const layerId = this.generateId();
-                this.designLayers.push({
+                this.designLayers[this.currentView].push({
                     id: layerId,
                     name: svgData.file_name || 'SVG Element',
                     type: 'svg',
@@ -815,7 +821,7 @@
                 // Add to design layers
                 const layerId = this.generateId();
                 const fileName = imageUrl.split('/').pop();
-                this.designLayers.push({
+                this.designLayers[this.currentView].push({
                     id: layerId,
                     name: fileName || 'Image Element',
                     type: 'image',
@@ -851,7 +857,7 @@
 
             // Add to design layers
             const layerId = this.generateId();
-            this.designLayers.push({
+            this.designLayers[this.currentView].push({
                 id: layerId,
                 name: text.length > 20 ? text.substring(0, 20) + '...' : text,
                 type: 'text',
@@ -1039,8 +1045,12 @@
             const layersList = this.container.find('.cd-layers-list');
             layersList.empty();
 
+            if (!this.currentView || !this.designLayers[this.currentView]) {
+                return;
+            }
+
             // Sort layers by z-index (bottom to top)
-            const sortedLayers = [...this.designLayers].sort((a, b) => {
+            const sortedLayers = [...this.designLayers[this.currentView]].sort((a, b) => {
                 const aIndex = this.canvas.getObjects().indexOf(a.object);
                 const bIndex = this.canvas.getObjects().indexOf(b.object);
                 return aIndex - bIndex;
@@ -1099,10 +1109,14 @@
          * @param {string} layerId Layer ID
          */
         moveLayerUp(layerId) {
-            const layerIndex = this.designLayers.findIndex(layer => layer.id === layerId);
+            if (!this.currentView || !this.designLayers[this.currentView]) {
+                return;
+            }
+
+            const layerIndex = this.designLayers[this.currentView].findIndex(layer => layer.id === layerId);
             if (layerIndex === -1) return;
 
-            const layer = this.designLayers[layerIndex];
+            const layer = this.designLayers[this.currentView][layerIndex];
             const canvasObjects = this.canvas.getObjects();
             const objectIndex = canvasObjects.indexOf(layer.object);
 
@@ -1118,11 +1132,14 @@
          *
          * @param {string} layerId Layer ID
          */
-        moveLayerDown(layerId) {
-            const layerIndex = this.designLayers.findIndex(layer => layer.id === layerId);
+        moveLayerDown(layerId) { 
+            if (!this.currentView || !this.designLayers[this.currentView]) {
+                return;
+            }
+            const layerIndex = this.designLayers[this.currentView].findIndex(layer => layer.id === layerId);
             if (layerIndex === -1) return;
 
-            const layer = this.designLayers[layerIndex];
+            const layer = this.designLayers[this.currentView][layerIndex];
             const canvasObjects = this.canvas.getObjects();
             const objectIndex = canvasObjects.indexOf(layer.object);
             const templateIndex = canvasObjects.findIndex(obj => obj.name === 'template');
@@ -1161,7 +1178,7 @@
             this.canvas.remove(layer.object);
 
             // Remove from layers array
-            this.designLayers.splice(layerIndex, 1);
+            this.designLayers[this.currentView].splice(layerIndex, 1);
 
             // Update layers panel
             this.updateLayersPanel();
@@ -1221,7 +1238,7 @@
         }
 
         // Render template view
-        renderTemplateView(objects, template) {
+        renderTemplateView(objects, template, viewBox) {
             // Create template group
             const templateGroup = new fabric.Group(objects, {
                 selectable: false,
@@ -1323,7 +1340,7 @@
         }
 
         // Update AJAX methods for template loading
-        loadTemplate() {
+        loadTemplateViews() {
             if (!this.options.templateId) {
                 this.showError(cd_vars.messages.no_template);
                 return;
@@ -1485,11 +1502,18 @@
             }
 
             // Clear design layers
-            this.designLayers.forEach(layer => {
-                this.canvas.remove(layer.object);
+            Object.keys(this.designLayers).forEach(viewType => {
+                // Remove objects from canvas for current view
+                if (viewType === this.currentView) {
+                    this.designLayers[viewType].forEach(layer => {
+                        this.canvas.remove(layer.object);
+                    });
+                }
+                
+                // Clear the layers array for this view
+                this.designLayers[viewType] = [];
             });
 
-            this.designLayers = [];
             this.updateLayersPanel();
 
             // Reload template
