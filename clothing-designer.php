@@ -129,6 +129,7 @@ class Clothing_Designer {
         $charset_collate = $wpdb->get_charset_collate();
         
         $designs_table = $wpdb->prefix . 'cd_designs';
+        $templates_table = $wpdb->prefix . 'cd_templates';
         
         $designs_sql = "CREATE TABLE $designs_table (
             id bigint(20) NOT NULL AUTO_INCREMENT,
@@ -140,19 +141,17 @@ class Clothing_Designer {
             updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             KEY user_id (user_id),
-            KEY template_id (template_id)
+            KEY template_id (template_id),
             CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES {$wpdb->users} (ID) ON DELETE CASCADE,
-            CONSTRAINT fk_template FOREIGN KEY (template_id) REFERENCES {$wpdb->prefix}cd_templates (id) ON DELETE CASCADE
+            CONSTRAINT fk_template FOREIGN KEY (template_id) REFERENCES $templates_table (id) ON DELETE CASCADE
         ) $charset_collate;";
-        
-        $templates_table = $wpdb->prefix . 'cd_templates';
         
         $templates_sql = "CREATE TABLE IF NOT EXISTS $templates_table (
             id bigint(20) NOT NULL AUTO_INCREMENT,
             title varchar(255) NOT NULL,
             description text NOT NULL,
-         /*    file_url varchar(255) NOT NULL,
-            file_type varchar(20) NOT NULL, */
+            file_url varchar(255) NOT NULL,
+            file_type varchar(20) NOT NULL,
             thumbnail_url varchar(255) NOT NULL,
             status varchar(20) NOT NULL DEFAULT 'publish',
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -160,8 +159,9 @@ class Clothing_Designer {
             PRIMARY KEY  (id)
         ) $charset_collate;";
         
+        $templates_views_table = $wpdb->prefix . 'cd_template_views';
         // Update templates table to support multiple views
-        $templates_views_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}cd_template_views (
+        $templates_views_sql = "CREATE TABLE IF NOT EXISTS $templates_views_table (
             id bigint(20) NOT NULL AUTO_INCREMENT,
             template_id bigint(20) NOT NULL,
             view_type varchar(50) NOT NULL,
@@ -169,8 +169,8 @@ class Clothing_Designer {
             file_type varchar(20) NOT NULL,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            KEY template_id (template_id)
-            CONSTRAINT fk_template_view FOREIGN KEY (template_id) REFERENCES {$wpdb->prefix}cd_templates (id) ON DELETE CASCADE
+            KEY template_id (template_id),
+            CONSTRAINT fk_template_view FOREIGN KEY (template_id) REFERENCES $templates_table (id) ON DELETE CASCADE
         ) $charset_collate;";
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
