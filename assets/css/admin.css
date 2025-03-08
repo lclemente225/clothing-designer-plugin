@@ -141,7 +141,11 @@
     border-radius: 4px;
     margin-top: 20px;
 }
-
+/* Template View Preview */
+.cd-view-preview img{
+    max-width: 500px;
+    max-height: 500px;
+}
 /* Shortcode info */
 .cd-shortcode-info {
     margin-top: 30px;
