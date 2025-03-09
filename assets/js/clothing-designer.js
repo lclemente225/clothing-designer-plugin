@@ -1277,9 +1277,10 @@
             
             // Load template view
             const template = this.templateViews[viewType];
+            console.log("loading template view - clothing-designer.js 1282", viewType, template)
             
             if (template.file_type === 'svg') {
-                    fabric.loadSVGFromString(template.content, (objects, options) => {
+                fabric.loadSVGFromString(template.content, (objects, options) => {
                     // Extract SVG dimensions from viewBox
                     let viewBox = [0, 0, 300, 150];
                     const viewBoxMatch = template.content.match(/viewBox=['"]([^'"]+)['"]/);

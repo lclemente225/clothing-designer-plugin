@@ -889,13 +889,14 @@ class CD_Template {
             }
             // Make sure front view exists (if not already defined)
             if (!isset($views['front'])) {
+                $content = $this->get_template_contents($view->file_url);
                 $views['front'] = array(
                     'id' => 0, 
                     'template_id' => $template_id,
                     'view_type' => 'front',
                     'file_url' => $template->file_url,
                     'file_type' => $template->file_type,
-                    'content' => $this->get_template_contents($template->file_url)
+                    'content' => $content
                 );
             }
         }
