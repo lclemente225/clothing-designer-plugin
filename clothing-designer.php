@@ -165,27 +165,35 @@ class Clothing_Designer {
      * Activate plugin.
      */
     public function activate_plugin() {
-        // Create necessary directories
-        if (!file_exists(CD_UPLOADS_DIR)) {
-            wp_mkdir_p(CD_UPLOADS_DIR);
+        // Create necessary directories using the check_required_directories method
+        try {
+            $this->check_required_directories();
             
             // Create index.php to prevent directory listing
-            file_put_contents(CD_UPLOADS_DIR . 'index.php', '<?php // Silence is golden');
+            if (!file_exists(CD_UPLOADS_DIR . 'index.php')) {
+                file_put_contents(CD_UPLOADS_DIR . 'index.php', '<?php // Silence is golden');
+            }
             
             // Create .htaccess to restrict access
-            file_put_contents(CD_UPLOADS_DIR . '.htaccess', 
-                "# Disable directory listing\n" .
-                "Options -Indexes\n\n" .
-                "# Allow access to image files\n" .
-                "<FilesMatch '\.(svg|png|jpe?g|gif|ai)$'>\n" .
-                "    Require all granted\n" .
-                "</FilesMatch>\n\n" .
-                "# Deny access to PHP files\n" .
-                "<FilesMatch '\.php$'>\n" .
-                "    Require all denied\n" .
-                "</FilesMatch>"
-            );
+            if (!file_exists(CD_UPLOADS_DIR . '.htaccess')) {
+                file_put_contents(CD_UPLOADS_DIR . '.htaccess', 
+                    "# Disable directory listing\n" .
+                    "Options -Indexes\n\n" .
+                    "# Allow access to image files\n" .
+                    "<FilesMatch '\.(svg|png|jpe?g|gif|ai)$'>\n" .
+                    "    Require all granted\n" .
+                    "</FilesMatch>\n\n" .
+                    "# Deny access to PHP files\n" .
+                    "<FilesMatch '\.php$'>\n" .
+                    "    Require all denied\n" .
+                    "</FilesMatch>"
+                );
+            }
+        } catch (Exception $e) {
+            error_log('Clothing Designer activation error: ' . $e->getMessage());
+            // No need to rethrow - we'll just log the error during activation
         }
+        
         
         // Create database tables
         global $wpdb;
@@ -257,12 +265,12 @@ class Clothing_Designer {
         
         // Add automatic timestamp updates for MySQL 5.6+
         if ($this->check_mysql_version_for_timestamp_updates()) {
-            $wpdb->query("ALTER TABLE $templates_table 
+            $wpdb->query("ALTER TABLE `{$templates_table}`
                 MODIFY updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
                 
-            $wpdb->query("ALTER TABLE $designs_table 
+            $wpdb->query("ALTER TABLE `{$designs_table}` 
                 MODIFY updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
-        
+        }
         
         // Add default options
         add_option('cd_options', array(
@@ -274,7 +282,7 @@ class Clothing_Designer {
         
         // Flush rewrite rules
         flush_rewrite_rules();
-    }}
+    }
     
     /**
      * Deactivate plugin.
