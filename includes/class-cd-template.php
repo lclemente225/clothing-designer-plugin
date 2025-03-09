@@ -834,6 +834,7 @@ class CD_Template {
      * Get template with all views.
      */
     public function ajax_get_template_views() {
+        error_log('CD: Template views requested');
         // Check nonce
         check_ajax_referer(CD_AJAX_NONCE, 'nonce');
         
@@ -866,6 +867,8 @@ class CD_Template {
         
         // Front view is the main template if no specific views are set
         if (empty($view_results)) {
+            error_log('CD: No specific views found, using main template as front view');;
+            $content = $this->get_template_contents($template->file_url);
             $views['front'] = array(
                 'id' => 0,
                 'template_id' => $template_id,
@@ -888,7 +891,9 @@ class CD_Template {
                 );
             }
             // Make sure front view exists (if not already defined)
-            if (!isset($views['front'])) {
+            if (!isset($views['front']) && !empty($view_results)) {
+                error_log('CD: Front view not found in results, adding default front view');
+
                 $content = $this->get_template_contents($view->file_url);
                 $views['front'] = array(
                     'id' => 0, 
@@ -908,7 +913,8 @@ class CD_Template {
             'file_url' => $template->file_url,
             'file_type' => $template->file_type
         );
-        
+        error_log('CD: Sending template views response with views: ' . implode(', ', array_keys($views)));
+
         wp_send_json_success(array(
             'template' => $template_data,
             'views' => $views
