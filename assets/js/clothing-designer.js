@@ -1399,6 +1399,8 @@
 
         // Update AJAX methods for template loading
         loadTemplateViews() {
+            console.log('Loading template views for template ID:', this.options.templateId);
+
             if (!this.options.templateId) {
                 this.showError(cd_vars.messages.no_template);
                 return;
@@ -1415,10 +1417,12 @@
                     template_id: this.options.templateId
                 },
                 success: (response) => {
+                    console.log("load template views response", response)
                     if (response.success) {
                         this.template = response.data.template;
                         this.templateViews = response.data.views;
-                         
+                        console.log('Template:', this.template);
+                        console.log('Views available:', Object.keys(this.templateViews));
                         // Enable only the view buttons for which we have data
                         Object.keys(this.templateViews).forEach(viewType => {
                             this.container.find(`.cd-view-btn[data-view="${viewType}"]`).prop('disabled', false);
@@ -1660,7 +1664,7 @@
             
             // Debug: Log the JSON data size
             const designDataJSON = JSON.stringify(designData);
-            console.log('Design data JSON size: ' + designDataJSON.length + ' bytes');
+            console.log('Design data JSON size: ' + designDataJSON + ' bytes');
             
             // Step 1: Save design metadata first (without large SVG content)
             const metadataOnly = {

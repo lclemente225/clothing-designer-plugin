@@ -82,6 +82,7 @@ class CD_Template {
      */
     public function get_template_contents($file_url) {
         $error_log_prefix = 'Clothing Designer: Error loading template file';
+        error_log('CD: Getting template contents for URL: ' . $file_url);
 
         // Method 1: Convert URL to server path if it's a local file
         if (strpos($file_url, site_url()) === 0) {
@@ -140,6 +141,7 @@ class CD_Template {
         }
 
         $content = wp_remote_retrieve_body($response);
+        error_log('CD: Content length: ' . strlen($content));
         if (empty($content)) {
             error_log("{$error_log_prefix}: Empty content received from {$file_url}");
         }
@@ -837,7 +839,8 @@ class CD_Template {
         
         // Get template ID
         $template_id = isset($_POST['template_id']) ? intval($_POST['template_id']) : 0;
-        
+        error_log('CD: Template views requested for template ID: ' . $template_id);
+
         if ($template_id <= 0) {
             wp_send_json_error(array('message' => __('Invalid template ID', 'clothing-designer')));
             return;
