@@ -728,7 +728,7 @@ class CD_Admin {
         
         $template_id = isset($_POST['template_id']) ? intval($_POST['template_id']) : 0;
         
-        if ($template_id <= 0) {
+        if ($template_id <= 0) {            
             wp_send_json_error(array('message' => __('Invalid template ID', 'clothing-designer')));
             return;
         }
@@ -862,8 +862,12 @@ class CD_Admin {
                 
                 // Skip if no file URL (except for front which is required - already checked above)
                 if (empty($view_file_url)) {
+                    if ($view_type === 'front') {
+                        wp_send_json_error(array('message' => __('Front view is required', 'clothing-designer')));
+                        return;
+                    }
                     continue;
-                }
+                }            
                 
                 // Verify file type if it's a local file
                 $upload_dir = wp_upload_dir();
@@ -872,7 +876,7 @@ class CD_Admin {
                 if (file_exists($file_path)) {
                     $verification_result = $this->verify_file_type($file_path, $allowed_file_types);
                     if ($verification_result !== true) {
-                        wp_send_json_error(array('message' => $verification_result));
+                        wp_send_json_error(array('message' => $verification_result, 'clothing-designer'));
                         return;
                     }
                 }

@@ -74,7 +74,9 @@
          */
         init() {
             this.initCanvas();
-            this.setupEventListeners();
+            this.setupEventListeners();    
+            // Initialize all view buttons as disabled until we know which views are available
+            this.container.find('.cd-view-btn').prop('disabled', true);
             this.loadTemplate();
         }
 
@@ -427,6 +429,11 @@
          * Extract SVG text elements
          */
         extractSVGTextElements() {
+            if (!this.template || !this.template.content) {
+                console.warn('No template content available for text extraction');
+                return;
+            }
+
             $.ajax({
                 url: cd_vars.ajax_url,
                 type: 'POST',
@@ -440,6 +447,9 @@
                         this.svgTexts = response.data.text_elements;
                         this.updateTextPanel();
                     }
+                },
+                error: (xhr, status, error) => {
+                    console.error('Error extracting SVG text:', status, error);
                 }
             });
         }
@@ -628,8 +638,21 @@
          *
          * @param {Object} svgData SVG data
          */
-        addSVG(svgData) {
-            fabric.loadSVGFromString(svgData.content, (objects, options) => {
+        addSVG(svgData) { 
+            if (!svgData || !svgData.content) {
+                console.error('Invalid SVG data provided');
+                alert(cd_vars.messages.invalid_file || 'Invalid SVG file');
+                return;
+            }
+
+            try{
+                fabric.loadSVGFromString(svgData.content, (objects, options) => {
+                if (!objects || objects.length === 0) {
+                    console.error('No SVG objects loaded');
+                    alert(cd_vars.messages.invalid_svg || 'Invalid SVG content');
+                    return;
+                }
+
                 const svgGroup = new fabric.Group(objects, {
                     left: this.canvas.width / 2,
                     top: this.canvas.height / 2,
@@ -638,35 +661,42 @@
                     originY: 'center'
                 });
 
-                // Scale to reasonable size
-                const maxDimension = Math.min(this.canvas.width, this.canvas.height) * 0.5;
-                const scale = maxDimension / Math.max(svgGroup.width, svgGroup.height);
-                svgGroup.scale(scale);
+                    // Scale to reasonable size
+                    const maxDimension = Math.min(this.canvas.width, this.canvas.height) * 0.5;
+                    const scale = maxDimension / Math.max(svgGroup.width, svgGroup.height);
+                    svgGroup.scale(scale);
 
-                // Add to canvas
-                this.canvas.add(svgGroup);
-                this.canvas.setActiveObject(svgGroup);
-                this.canvas.renderAll();
+                    // Add to canvas
+                    this.canvas.add(svgGroup);
+                    this.canvas.setActiveObject(svgGroup);
+                    this.canvas.renderAll();
 
-                // Add to design layers
-                const layerId = this.generateId();
-                this.designLayers[this.currentView].push({
-                    id: layerId,
-                    name: svgData.file_name || 'SVG Element',
-                    type: 'svg',
-                    object: svgGroup,
-                    svg_content: svgData.content,
-                    file_url: svgData.file_url,
-                    text_elements: svgData.text_elements || [],
-                    editable: svgData.editable || false
-                });
+                    // Add to design layers
+                    const layerId = this.generateId();
+                    this.designLayers[this.currentView].push({
+                        id: layerId,
+                        name: svgData.file_name || 'SVG Element',
+                        type: 'svg',
+                        object: svgGroup,
+                        svg_content: svgData.content,
+                        file_url: svgData.file_url,
+                        text_elements: svgData.text_elements || [],
+                        editable: svgData.editable || false
+                    });
 
-                this.updateLayersPanel();
-                // If the SVG has editable text, show text editing options
-                if (svgData.editable && svgData.text_elements && svgData.text_elements.length > 0) {
-                    this.showEditableSVGText(layerId, svgData.text_elements);
-                }
-            });
+                    this.updateLayersPanel();
+                    // If the SVG has editable text, show text editing options
+                    if (svgData.editable && svgData.text_elements && svgData.text_elements.length > 0) {
+                        this.showEditableSVGText(layerId, svgData.text_elements);
+                    }
+                }, (error) => {
+                    console.error('Error loading SVG:', error);
+                    alert(cd_vars.messages.error_loading_svg || 'Error loading SVG');
+                }, { crossOrigin: 'anonymous' });
+            }catch (e) {
+                console.error('Exception when processing SVG:', e);
+                alert(cd_vars.messages.svg_processing_error || 'Error processing SVG');
+            }
         }
 
         /**
@@ -677,10 +707,10 @@
          */
         showEditableSVGText(layerId, textElements) {
             // Find the layer in designLayers
-            const layerIndex = this.designLayers.findIndex(layer => layer.id === layerId);
+            const layerIndex = this.designLayers[this.currentView].findIndex(layer => layer.id === layerId);
             if (layerIndex === -1) return;
             
-            const layer = this.designLayers[layerIndex];
+            const layer = this.designLayers[this.currentView][layerIndex];
             
             // Create a panel to edit SVG text elements
             const panel = $('<div class="cd-svg-text-editor"></div>');
@@ -723,10 +753,10 @@
          */
         updateUploadedSVGText(layerId, textId, newText) {
             // Find the layer
-            const layerIndex = this.designLayers.findIndex(layer => layer.id === layerId);
+            const layerIndex = this.designLayers[this.currentView].findIndex(layer => layer.id === layerId);
             if (layerIndex === -1) return;
             
-            const layer = this.designLayers[layerIndex];
+            const layer = this.designLayers[this.currentView][layerIndex];
             
             // Show loading
             this.showLoading();
@@ -1190,15 +1220,43 @@
         switchView(viewType) {
             // Check if view exists
             if (!this.templateViews[viewType]) {
-                alert(`${viewType} view is not available for this template`);
+                // Try to load the view if it doesn't exist yet
+                this.showLoading();
+                $.ajax({
+                    url: cd_vars.ajax_url,
+                    type: 'POST',
+                    data: {
+                        action: 'cd_get_template_views',
+                        nonce: cd_vars.nonce,
+                        template_id: this.options.templateId
+                    },
+                    success: (response) => {
+                        this.hideLoading();
+                        if (response.success && response.data.views[viewType]) {
+                            this.templateViews = response.data.views;
+                            this.performViewSwitch(viewType);
+                        } else {
+                            alert(`${viewType} view is not available for this template`);
+                        }
+                    },
+                    error: () => {
+                        this.hideLoading();
+                        alert(`Error loading ${viewType} view`);
+                    }
+                });
                 return;
             }
             
-            // Save current layers
-             // Only save current layers if we have a valid current view
+            this.performViewSwitch(viewType);         
+        }
+
+        // Perform the actual view switch once we have the data
+        performViewSwitch(viewType) {
+            // Save current layers if we have a valid current view
             if (this.currentView && this.templateViews[this.currentView]) {
                 this.saveCurrentViewLayers();
             }
+            
             // Update active button
             this.container.find('.cd-view-btn').removeClass('active');
             this.container.find(`.cd-view-btn[data-view="${viewType}"]`).addClass('active');
@@ -1360,7 +1418,12 @@
                     if (response.success) {
                         this.template = response.data.template;
                         this.templateViews = response.data.views;
-                        
+                         
+                        // Enable only the view buttons for which we have data
+                        Object.keys(this.templateViews).forEach(viewType => {
+                            this.container.find(`.cd-view-btn[data-view="${viewType}"]`).prop('disabled', false);
+                        });
+                
                         // Load front view by default
                         if (this.templateViews.front) {
                             this.currentView = 'front';
@@ -1605,7 +1668,7 @@
                 views: {}
             };
             
-            // Process each view to remove large content
+       /*      // Process each view to remove large content
             Object.keys(designData.views).forEach(viewType => {
                 if (designData.views[viewType] && designData.views[viewType].elements) {
                     metadataOnly.views[viewType] = {
@@ -1622,7 +1685,7 @@
                         })
                     };
                 }
-            });
+            }); */
             
             // Send to server
             $.ajax({
@@ -1696,7 +1759,10 @@
             Object.keys(this.designLayers).forEach(viewType => {
                 const viewSvgElements = this.designLayers[viewType].filter(layer => 
                     layer.type === 'svg' && layer.svg_content
-                );
+                ).map(layer => ({
+                    ...layer,
+                    view_type: viewType  // Add view type to each element
+                }));
                 svgElements = svgElements.concat(viewSvgElements);
             });
             
@@ -1721,7 +1787,8 @@
                         nonce: cd_vars.nonce,
                         design_id: designId,
                         element_id: element.id,
-                        svg_content: element.svg_content
+                        svg_content: element.svg_content,
+                        view_type: element.view_type
                     },
                     success: () => {
                         processed++;

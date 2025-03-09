@@ -51,8 +51,8 @@ class CD_Template {
         add_action('wp_ajax_cd_load_design', array($this, 'ajax_load_design'));
         add_action('wp_ajax_nopriv_cd_load_design', array($this, 'ajax_load_design'));
         
-        add_action('wp_ajax_cd_view_design', array($this, 'ajax_view_design'));
-        add_action('wp_ajax_nopriv_cd_view_design', array($this, 'ajax_view_design'));
+        add_action('wp_ajax_cd_view_design', array($this, 'ajax_view_design_template'));
+        add_action('wp_ajax_nopriv_cd_view_design', array($this, 'ajax_view_design_template'));
         // Add handler for saving individual design elements
         add_action('wp_ajax_cd_save_design_element', array($this, 'ajax_save_design_element'));
         add_action('wp_ajax_nopriv_cd_save_design_element', array($this, 'ajax_save_design_element'));
@@ -71,7 +71,7 @@ class CD_Template {
         global $wpdb;
         $templates_table = $wpdb->prefix . 'cd_templates';
         
-        return $wpdb->get_row($wpdb->prepare("SELECT * FROM $templates_table WHERE id = %d AND status = 'publish'", $template_id));
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$templates_table}` WHERE id = %d AND status = 'publish'", $template_id));
     }
     
     /**
@@ -81,6 +81,8 @@ class CD_Template {
      * @return string Template file contents.
      */
     public function get_template_contents($file_url) {
+        $error_log_prefix = 'Clothing Designer: Error loading template file';
+
         // Method 1: Convert URL to server path if it's a local file
         if (strpos($file_url, site_url()) === 0) {
             $file_path = str_replace(site_url('/'), ABSPATH, $file_url);
@@ -90,6 +92,7 @@ class CD_Template {
                 if ($content !== false) {
                     return $content;
                 }
+                error_log("{$error_log_prefix} from path: {$file_path}");
             }
         }
         
@@ -103,6 +106,7 @@ class CD_Template {
                 if ($content !== false) {
                     return $content;
                 }
+                error_log("{$error_log_prefix} from uploads: {$file_path}");
             }
         }
         
@@ -120,6 +124,7 @@ class CD_Template {
                 if ($content !== false) {
                     return $content;
                 }
+                error_log("{$error_log_prefix} using WP_Filesystem: {$file_path}");
             }
         }
         
@@ -130,10 +135,15 @@ class CD_Template {
         ));
         
         if (is_wp_error($response)) {
+            error_log("{$error_log_prefix} via HTTP: " . $response->get_error_message());
             return '';
         }
-        
-        return wp_remote_retrieve_body($response);
+
+        $content = wp_remote_retrieve_body($response);
+        if (empty($content)) {
+            error_log("{$error_log_prefix}: Empty content received from {$file_url}");
+        }
+        return $content;
     }
     
     /**
@@ -148,30 +158,130 @@ class CD_Template {
     public function save_design($user_id, $template_id, $design_data, $preview_url) {
         global $wpdb;
         $designs_table = $wpdb->prefix . 'cd_designs';
+         // Check design data size
+        $data_size = strlen($design_data);
+        $max_safe_size = 1024 * 1024; // 1MB
         
-        $result = $wpdb->insert(
-            $designs_table,
-            array(
-                'user_id' => $user_id,
-                'template_id' => $template_id,
-                'design_data' => $design_data,
-                'preview_url' => $preview_url,
-            ),
-            array(
-                '%d', // user_id
-                '%d', // template_id
-                '%s', // design_data
-                '%s', // preview_url
-            )
-        );
+        // Start transaction for database consistency
+        $wpdb->query('START TRANSACTION');
         
-        if ($result === false) {
+        try {
+            // For very large design data, consider chunking or compression
+            if ($data_size > $max_safe_size) {
+                // Option 1: Compress data
+                $compressed_data = gzcompress($design_data);
+                if ($compressed_data !== false) {
+                    $design_data = $compressed_data;
+                    $is_compressed = true;
+                }
+                
+                // Option 2: If still too large, store metadata only and save full data separately
+                if (strlen($design_data) > $max_safe_size) {
+                    // Extract basic metadata
+                    $design_metadata = $this->extract_design_metadata($design_data);
+                    
+                    // Save metadata to database
+                    $result = $wpdb->insert(
+                        $designs_table,
+                        array(
+                            'user_id' => $user_id,
+                            'template_id' => $template_id,
+                            'design_data' => $design_metadata,
+                            'preview_url' => $preview_url,
+                            'is_chunked' => 1,
+                        ),
+                        array('%d', '%d', '%s', '%s', '%d')
+                    );
+                    
+                    if ($result === false) {
+                        $wpdb->query('ROLLBACK');
+                        return false;
+                    }
+                    
+                    $design_id = $wpdb->insert_id;
+                    
+                    // Save full data to file
+                    $file_path = CD_UPLOADS_DIR . 'designs/design-' . $design_id . '.json';
+                    if (!is_dir(dirname($file_path))) {
+                        wp_mkdir_p(dirname($file_path));
+                    }
+                    
+                    $file_saved = file_put_contents($file_path, $design_data);
+                    if ($file_saved === false) {
+                        $wpdb->query('ROLLBACK');
+                        return false;
+                    }
+                    
+                    $wpdb->query('COMMIT');
+                    return $design_id;
+                }
+            }
+            
+            // Normal case: save directly to database
+            $result = $wpdb->insert(
+                $designs_table,
+                array(
+                    'user_id' => $user_id,
+                    'template_id' => $template_id,
+                    'design_data' => $design_data,
+                    'preview_url' => $preview_url,
+                    'is_compressed' => isset($is_compressed) ? 1 : 0,
+                ),
+                array('%d', '%d', '%s', '%s', '%d')
+            );
+            
+            if ($result === false) {
+                $wpdb->query('ROLLBACK');
+                return false;
+            }
+            
+            $wpdb->query('COMMIT');
+            return $wpdb->insert_id;
+        } catch (Exception $e) {
+            $wpdb->query('ROLLBACK');
+            error_log('Clothing Designer: Error saving design: ' . $e->getMessage());
             return false;
         }
-        
-        return $wpdb->insert_id;
+        ;
     }
-    
+
+    /**
+     * Extract basic metadata from design data
+     * 
+     * @param string $design_data Full JSON design data
+     * @return string Basic metadata JSON
+     */
+    private function extract_design_metadata($design_data) {
+        $data = json_decode($design_data, true);
+        
+        // If JSON parsing fails, return a minimal structure
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return json_encode(array(
+                'is_chunked' => true,
+                'timestamp' => time()
+            ));
+        }
+        
+        // Create a reduced version with essential metadata
+        $metadata = array(
+            'is_chunked' => true,
+            'timestamp' => time(),
+            'currentView' => isset($data['currentView']) ? $data['currentView'] : 'front',
+            'views' => array()
+        );
+        
+        // Include basic structure but remove large content
+        if (isset($data['views']) && is_array($data['views'])) {
+            foreach ($data['views'] as $viewName => $view) {
+                $metadata['views'][$viewName] = array(
+                    'elementCount' => isset($view['elements']) ? count($view['elements']) : 0
+                );
+            }
+        }
+        
+        return json_encode($metadata);
+    }
+
     /**
      * Get design by ID.
      *
@@ -182,7 +292,39 @@ class CD_Template {
         global $wpdb;
         $designs_table = $wpdb->prefix . 'cd_designs';
         
-        return $wpdb->get_row($wpdb->prepare("SELECT * FROM $designs_table WHERE id = %d", $design_id));
+        $design = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$designs_table}` WHERE id = %d", $design_id));
+        
+        if (!$design) {
+            return false;
+        }
+        
+        // Handle compressed data
+        if (isset($design->is_compressed) && $design->is_compressed) {
+            $design->design_data = gzuncompress($design->design_data);
+        }
+        
+        // Handle chunked data
+        if (isset($design->is_chunked) && $design->is_chunked) {
+            $file_path = CD_UPLOADS_DIR . 'designs/design-' . $design_id . '.json';
+            
+            if (file_exists($file_path)) {
+                $full_data = file_get_contents($file_path);
+                if ($full_data !== false) {
+                    $design->design_data = $full_data;
+                    
+                    // Handle if this is also compressed
+                    if (isset($design->is_compressed) && $design->is_compressed) {
+                        $design->design_data = gzuncompress($design->design_data);
+                    }
+                } else {
+                    error_log("Clothing Designer: Could not read chunked design data from file: {$file_path}");
+                }
+            } else {
+                error_log("Clothing Designer: Chunked design data file not found: {$file_path}");
+            }
+        }
+        
+        return $design;
     }
     
     /**
@@ -332,9 +474,16 @@ class CD_Template {
      * @return string Resized image data
      */
     private function resize_image_data($image_data, $max_width = 800) {
+         // Check if GD library is available
+        if (!function_exists('imagecreatefromstring') || !function_exists('imagecreatetruecolor')) {
+            error_log('Clothing Designer: GD library functions not available for image resizing');
+            return $image_data; // Return original if GD not available
+        }
+
         // Create image resource from data
         $source = imagecreatefromstring($image_data);
         if (!$source) {
+            error_log('Clothing Designer: Failed to create image from string data');
             return $image_data; // Return original if creation fails
         }
         
@@ -349,6 +498,11 @@ class CD_Template {
             
             // Create new image
             $new_image = imagecreatetruecolor($new_width, $new_height);
+            if (!$new_image) {
+                imagedestroy($source);
+                error_log('Clothing Designer: Failed to create resized image');
+                return $image_data;
+            }
             
             // Preserve transparency
             imagealphablending($new_image, false);
@@ -443,10 +597,12 @@ class CD_Template {
     /**
      * Ajax view design.
      */
-    public function ajax_view_design() {
+    public function ajax_view_design_template() {
         // Check nonce
         check_ajax_referer('cd-view-design', 'nonce');
        
+        // Get design ID
+        $design_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
         // Check permissions - allow viewing by design owners or administrators
         $design = $this->get_design($design_id);
 
@@ -455,29 +611,17 @@ class CD_Template {
             return;
         }
 
+        if ($design_id <= 0) {
+                wp_die(__('Invalid design ID', 'clothing-designer'));
+                return;
+        }
+
         // Allow admins and design creators to view designs
         // In CD_Template's ajax_view_design method:
         if (!$this->can_access_design($design)) {
             wp_die(__('You do not have permission to access this design', 'clothing-designer'));
             return;
-        }
-
-        
-        // Get design ID
-        $design_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-        
-        if ($design_id <= 0) {
-            wp_die(__('Invalid design ID', 'clothing-designer'));
-            return;
-        }
-        
-        // Get design
-        $design = $this->get_design($design_id);
-        
-        if (!$design) {
-            wp_die(__('Design not found', 'clothing-designer'));
-            return;
-        }
+        }        
         
         // Get template
         $template = $this->get_template($design->template_id);
@@ -636,7 +780,7 @@ class CD_Template {
     // Add this new method
     public function ajax_save_design_element() {
         // Check nonce
-        check_ajax_referer('cd-ajax-nonce', 'nonce');
+        check_ajax_referer(CD_AJAX_NONCE, 'nonce');
         
         // Get parameters
         $design_id = isset($_POST['design_id']) ? intval($_POST['design_id']) : 0;
@@ -651,7 +795,7 @@ class CD_Template {
         // Get existing design
         global $wpdb;
         $designs_table = $wpdb->prefix . 'cd_designs';
-        $design = $wpdb->get_row($wpdb->prepare("SELECT * FROM $designs_table WHERE id = %d", $design_id));
+        $design = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$designs_table}` WHERE id = %d", $design_id));
         
         if (!$design) {
             wp_send_json_error();
@@ -689,7 +833,7 @@ class CD_Template {
      */
     public function ajax_get_template_views() {
         // Check nonce
-        check_ajax_referer('cd-ajax-nonce', 'nonce');
+        check_ajax_referer(CD_AJAX_NONCE, 'nonce');
         
         // Get template ID
         $template_id = isset($_POST['template_id']) ? intval($_POST['template_id']) : 0;
@@ -713,7 +857,7 @@ class CD_Template {
         
         $views = array();
         $view_results = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM $template_views_table WHERE template_id = %d",
+            "SELECT * FROM `{$template_views_table}` WHERE template_id = %d",
             $template_id
         ));
         
@@ -738,6 +882,17 @@ class CD_Template {
                     'file_url' => $view->file_url,
                     'file_type' => $view->file_type,
                     'content' => $content
+                );
+            }
+            // Make sure front view exists (if not already defined)
+            if (!isset($views['front'])) {
+                $views['front'] = array(
+                    'id' => 0, 
+                    'template_id' => $template_id,
+                    'view_type' => 'front',
+                    'file_url' => $template->file_url,
+                    'file_type' => $template->file_type,
+                    'content' => $this->get_template_contents($template->file_url)
                 );
             }
         }

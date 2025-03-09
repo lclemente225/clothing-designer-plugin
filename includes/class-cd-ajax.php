@@ -56,6 +56,18 @@ class CD_Ajax {
         // Add handler for updating SVG text
         add_action('wp_ajax_cd_update_svg_text', array($this, 'ajax_update_svg_text'));
         add_action('wp_ajax_nopriv_cd_update_svg_text', array($this, 'ajax_update_svg_text'));
+
+        add_action('wp_ajax_cd_save_design', array($this, 'ajax_save_design'));
+        add_action('wp_ajax_nopriv_cd_save_design', array($this, 'ajax_save_design'));
+        
+        add_action('wp_ajax_cd_load_design', array($this, 'ajax_load_design'));
+        add_action('wp_ajax_nopriv_cd_load_design', array($this, 'ajax_load_design'));
+        
+        add_action('wp_ajax_cd_save_design_element', array($this, 'ajax_save_design_element'));
+        add_action('wp_ajax_nopriv_cd_save_design_element', array($this, 'ajax_save_design_element'));
+        
+        add_action('wp_ajax_cd_view_design', array($this, 'ajax_view_design'));
+        add_action('wp_ajax_nopriv_cd_view_design', array($this, 'ajax_view_design'));
         
     }
     
@@ -64,8 +76,11 @@ class CD_Ajax {
      */
     public function ajax_upload_file() {
         // Check nonce
-        check_ajax_referer(CD_AJAX_NONCE, 'nonce');
-        
+        if (!isset($_REQUEST['nonce']) || !wp_verify_nonce($_REQUEST['nonce'], CD_AJAX_NONCE)) {
+            wp_send_json_error(array('message' => __('Security check failed', 'clothing-designer')));
+            return;
+        }
+
         // Check if file was uploaded
         if (!isset($_FILES['file']) || empty($_FILES['file']['tmp_name'])) {
             wp_send_json_error(array('message' => __('No file uploaded', 'clothing-designer')));
@@ -98,6 +113,19 @@ class CD_Ajax {
             $allowed_types_str = implode(', ', array_map(function($ext) { return '.' . $ext; }, $allowed_file_types));
             wp_send_json_error(array(
                 'message' => __('File type not allowed. Allowed file types:', 'clothing-designer') . ' ' . $allowed_types_str
+            ));
+            return;
+        }
+
+
+        // Check file size
+        $max_size = wp_max_upload_size();
+        if ($file_size > $max_size) {
+            wp_send_json_error(array(
+                'message' => sprintf(
+                    __('File exceeds maximum upload size of %s', 'clothing-designer'),
+                    size_format($max_size)
+                )
             ));
             return;
         }
@@ -146,7 +174,8 @@ class CD_Ajax {
         // Get SVG URL or content
         $svg_url = isset($_POST['svg_url']) ? esc_url_raw($_POST['svg_url']) : '';
         $svg_content = isset($_POST['svg_content']) ? $_POST['svg_content'] : '';
-        
+        $view_type = isset($_POST['view_type']) ? sanitize_text_field($_POST['view_type']) : 'front';
+
         if (empty($svg_url) && empty($svg_content)) {
             wp_send_json_error(array('message' => __('No SVG content provided', 'clothing-designer')));
             return;
@@ -179,7 +208,7 @@ class CD_Ajax {
             return;
         }
         
-        wp_send_json_success(array('text_elements' => $text_elements));
+        wp_send_json_success(array('text_elements' => $text_elements, 'view_type' => $view_type));
     }
     
     /**
@@ -205,6 +234,10 @@ class CD_Ajax {
                 return false;
             }
         }
+
+        if (preg_match('/<svg[^>]*>.*<\/svg>/is', $content)) {
+            return true;
+        }    
         
         // Try to load with SimpleXML to verify well-formed XML
         libxml_use_internal_errors(true);
@@ -212,7 +245,22 @@ class CD_Ajax {
         $errors = libxml_get_errors();
         libxml_clear_errors();
         
-        return $doc !== false && empty($errors);
+        // If there are errors, check if they're just warnings that don't affect rendering
+        if ($doc === false && !empty($errors)) {
+            // Count only errors that would affect rendering
+            $critical_errors = 0;
+            foreach ($errors as $error) {
+                // Level 3 is LIBXML_ERR_FATAL, which definitely affects rendering
+                if ($error->level === 3) {
+                    $critical_errors++;
+                }
+            }
+            
+            // If no critical errors, still consider it valid for our purposes
+            return $critical_errors === 0;
+        }
+
+        return $doc !== false;
     }
 
     /**
@@ -249,12 +297,13 @@ class CD_Ajax {
      */
     public function ajax_update_svg_text() {
         // Check nonce
-        check_ajax_referer('cd-ajax-nonce', 'nonce');
+        check_ajax_referer(CD_AJAX_NONCE, 'nonce');
         
         // Get SVG content and text updates
         $svg_content = isset($_POST['svg_content']) ? $_POST['svg_content'] : '';
         $text_updates = isset($_POST['text_updates']) ? $_POST['text_updates'] : array();
-        
+        $view_type = isset($_POST['view_type']) ? sanitize_text_field($_POST['view_type']) : 'front';
+
         if (empty($svg_content) || empty($text_updates) || !is_array($text_updates)) {
             wp_send_json_error(array('message' => __('Invalid request parameters', 'clothing-designer')));
             return;
@@ -281,7 +330,8 @@ class CD_Ajax {
         
         wp_send_json_success(array(
             'updated_svg' => $updated_svg,
-            'text_elements' => $text_elements
+            'text_elements' => $text_elements,
+            'view_type' => $view_type
         ));
     }
     
@@ -338,5 +388,367 @@ class CD_Ajax {
         }
         
         return wp_remote_retrieve_body($response);
+    }
+
+    /**
+     * Save design.
+     */
+    public function ajax_save_design() {
+        // Check nonce
+        check_ajax_referer(CD_AJAX_NONCE, 'nonce');
+        
+        // Get design data
+        $template_id = isset($_POST['template_id']) ? intval($_POST['template_id']) : 0;
+        $design_data = isset($_POST['design_data']) ? $_POST['design_data'] : '';
+        $preview_image = isset($_POST['preview_image']) ? $_POST['preview_image'] : '';
+        
+        // Validate data
+        if (empty($template_id) || empty($design_data)) {
+            wp_send_json_error(array('message' => __('Invalid design data', 'clothing-designer')));
+            return;
+        }
+        
+        // Check if template exists
+        global $wpdb;
+        $templates_table = $wpdb->prefix . 'cd_templates';
+        $template = $wpdb->get_row($wpdb->prepare("SELECT * FROM $templates_table WHERE id = %d", $template_id));
+        
+        if (!$template) {
+            wp_send_json_error(array('message' => __('Template not found', 'clothing-designer')));
+            return;
+        }
+        
+        // Get user ID
+        $user_id = get_current_user_id();
+        
+        // Check guest designs setting if user is not logged in
+        if ($user_id === 0) {
+            $options = get_option('cd_options', array());
+            $allow_guest_designs = isset($options['allow_guest_designs']) ? $options['allow_guest_designs'] : 'yes';
+            
+            if ($allow_guest_designs !== 'yes') {
+                wp_send_json_error(array('message' => __('You must be logged in to save designs', 'clothing-designer')));
+                return;
+            }
+        }
+        
+        // Save preview image
+        $preview_url = '';
+        if (!empty($preview_image)) {
+            $preview_url = $this->save_preview_image($preview_image);
+            
+            if (empty($preview_url)) {
+                wp_send_json_error(array('message' => __('Failed to save preview image', 'clothing-designer')));
+                return;
+            }
+        }
+        
+        // Insert or update design
+        $designs_table = $wpdb->prefix . 'cd_designs';
+        $design_id = isset($_POST['design_id']) ? intval($_POST['design_id']) : 0;
+        
+        $data = array(
+            'user_id' => $user_id,
+            'template_id' => $template_id,
+            'design_data' => $design_data,
+            'preview_url' => $preview_url
+        );
+        
+        $format = array(
+            '%d', // user_id
+            '%d', // template_id
+            '%s', // design_data
+            '%s'  // preview_url
+        );
+        
+        if ($design_id > 0) {
+            // Update existing design
+            $result = $wpdb->update(
+                $designs_table,
+                $data,
+                array('id' => $design_id),
+                $format,
+                array('%d')
+            );
+        } else {
+            // Insert new design
+            $result = $wpdb->insert(
+                $designs_table,
+                $data,
+                $format
+            );
+            
+            $design_id = $wpdb->insert_id;
+        }
+        
+        if ($result === false) {
+            wp_send_json_error(array('message' => __('Failed to save design. Database error occurred.', 'clothing-designer'), 'error' => $wpdb->last_error));
+            return;
+        }
+        
+        wp_send_json_success(array(
+            'message' => __('Design saved successfully', 'clothing-designer'),
+            'design_id' => $design_id
+        ));
+    }
+
+    /**
+     * Save preview image.
+     *
+     * @param string $data_url Data URL
+     * @return string URL
+     */
+    private function save_preview_image($data_url) {
+            // Check if data URL is valid
+        if (empty($data_url) || !is_string($data_url)) {
+            error_log('Clothing Designer: Invalid preview image data');
+            return '';
+        }
+
+        // Extract the base64 image data
+        if (!preg_match('/^data:image\/(\w+);base64,/', $data_url, $type)) {
+            error_log('Clothing Designer: Invalid image data format');
+            return '';
+        }
+    
+        // Extract the base64 image data
+        $data = substr($data_url, strpos($data_url, ',') + 1);
+        $type = strtolower($type[1]); // jpg, png, gif
+        
+        if (!in_array($type, array('jpg', 'jpeg', 'gif', 'png'))) {
+            error_log('Clothing Designer: Invalid image type: ' . $type);
+            return '';
+        }
+        
+        $data = base64_decode($data);
+            
+           
+         if ($data === false) {
+            error_log('Clothing Designer: Failed to decode base64 image data');
+                return '';
+            }
+        // Create upload directory if it doesn't exist
+        if (!file_exists(CD_UPLOADS_DIR)) {
+            wp_mkdir_p(CD_UPLOADS_DIR);
+        }
+           // Check decoded data size
+        $max_size = 5 * 1024 * 1024; // 5MB limit
+        if (strlen($data) > $max_size) {
+            error_log('Clothing Designer: Preview image too large: ' . size_format(strlen($data)));
+            
+            // Try to resize the image
+            $resized_data = $this->resize_image_data($data);
+            if (strlen($resized_data) > $max_size) {
+                error_log('Clothing Designer: Failed to reduce image size sufficiently');
+                return '';
+            }
+            $data = $resized_data;
+        }
+        
+        // Create upload directory if it doesn't exist
+        if (!file_exists(CD_UPLOADS_DIR)) {
+            $dir_created = wp_mkdir_p(CD_UPLOADS_DIR);
+            if (!$dir_created) {
+                error_log('Clothing Designer: Failed to create uploads directory: ' . CD_UPLOADS_DIR);
+                return '';
+            }
+            
+            // Set proper permissions
+            chmod(CD_UPLOADS_DIR, 0755);
+        }
+        
+        // Validate directory is writable
+        if (!is_writable(CD_UPLOADS_DIR)) {
+            error_log('Clothing Designer: Uploads directory is not writable: ' . CD_UPLOADS_DIR);
+            return '';
+        }
+        
+        
+        // Generate filename
+        $filename = 'preview-' . time() . '-' . wp_generate_password(6, false) . '.' . $type;
+        $file_path = CD_UPLOADS_DIR . $filename;
+        $file_url = CD_UPLOADS_URL . $filename;
+        
+         // Save file
+        $bytes_written = file_put_contents($file_path, $data);
+        
+        if ($bytes_written === false || $bytes_written === 0) {
+            error_log('Clothing Designer: Failed to write file: ' . $file_path);
+            return '';
+        }
+        
+        // Verify file exists and is readable
+        if (!file_exists($file_path) || !is_readable($file_path)) {
+            error_log('Clothing Designer: File created but not readable: ' . $file_path);
+            return '';
+        }
+        
+        return $file_url;
+    }
+
+    /**
+     * Load design.
+     */
+    public function ajax_load_design() {
+        // Check nonce
+        check_ajax_referer(CD_AJAX_NONCE, 'nonce');
+        
+        // Get design ID
+        $design_id = isset($_POST['design_id']) ? intval($_POST['design_id']) : 0;
+        
+        if ($design_id <= 0) {
+            wp_send_json_error(array('message' => __('Invalid design ID', 'clothing-designer')));
+            return;
+        }
+        
+        // Get design
+        global $wpdb;
+        $designs_table = $wpdb->prefix . 'cd_designs';
+        $design = $wpdb->get_row($wpdb->prepare("SELECT * FROM $designs_table WHERE id = %d", $design_id));
+        
+        if (!$design) {
+            wp_send_json_error(array('message' => __('Design not found', 'clothing-designer')));
+            return;
+        }
+        
+        // Check user permission
+        $user_id = get_current_user_id();
+        
+        if ($user_id !== 0 && $design->user_id !== 0 && $design->user_id !== $user_id && !current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('You do not have permission to view this design', 'clothing-designer')));
+            return;
+        }
+        
+        wp_send_json_success(array('design' => $design));
+    }
+
+    /**
+     * Save design element.
+     */
+    public function ajax_save_design_element() {
+        // Check nonce
+        check_ajax_referer(CD_AJAX_NONCE, 'nonce');
+        
+        // Get parameters
+        $design_id = isset($_POST['design_id']) ? intval($_POST['design_id']) : 0;
+        $element_id = isset($_POST['element_id']) ? sanitize_text_field($_POST['element_id']) : '';
+        $svg_content = isset($_POST['svg_content']) ? wp_unslash($_POST['svg_content']) : '';
+        $view_type = isset($_POST['view_type']) ? sanitize_text_field($_POST['view_type']) : 'front';
+        
+        if ($design_id <= 0 || empty($element_id) || empty($svg_content)) {
+            wp_send_json_error();
+            return;
+        }
+        
+        // Get existing design
+        global $wpdb;
+        $designs_table = $wpdb->prefix . 'cd_designs';
+        $design = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$designs_table}` WHERE id = %d", $design_id));
+        
+        if (!$design) {
+            wp_send_json_error();
+            return;
+        }
+        
+        // Parse existing design data
+        $design_data = json_decode($design->design_data, true);
+        if (!$design_data) {
+            wp_send_json_error();
+            return;
+        }
+        
+        // Check if we're using the new format with views
+        if (isset($design_data['views']) && is_array($design_data['views'])) {
+            // Make sure the view exists
+            if (!isset($design_data['views'][$view_type])) {
+                $design_data['views'][$view_type] = array('elements' => array());
+            }
+            
+            // Make sure elements array exists
+            if (!isset($design_data['views'][$view_type]['elements'])) {
+                $design_data['views'][$view_type]['elements'] = array();
+            }
+            
+            // Update element with SVG content
+            $element_updated = false;
+            foreach ($design_data['views'][$view_type]['elements'] as &$element) {
+                if (isset($element['id']) && $element['id'] === $element_id) {
+                    $element['svg_content'] = $svg_content;
+                    $element_updated = true;
+                    break;
+                }
+            }
+        } 
+        // Legacy format without views
+        else if (isset($design_data['elements']) && is_array($design_data['elements'])) {
+            // Update element with SVG content
+            $element_updated = false;
+            foreach ($design_data['elements'] as &$element) {
+                if (isset($element['id']) && $element['id'] === $element_id) {
+                    $element['svg_content'] = $svg_content;
+                    $element_updated = true;
+                    break;
+                }
+            }
+        } else {
+            wp_send_json_error();
+            return;
+        }
+        
+        // Update design data in database
+        $result = $wpdb->update(
+            $designs_table,
+            array('design_data' => wp_json_encode($design_data)),
+            array('id' => $design_id),
+            array('%s'),
+            array('%d')
+        );
+        
+        wp_send_json_success();
+    }
+
+    /**
+     * View design.
+     */
+    public function ajax_view_design() {
+        // Check nonce
+        check_ajax_referer('cd-view-design', 'nonce');
+        
+        // Get design ID
+        $design_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+        
+        if ($design_id <= 0) {
+            wp_die(__('Invalid design ID', 'clothing-designer'));
+            return;
+        }
+        
+        // Get design
+        global $wpdb;
+        $designs_table = $wpdb->prefix . 'cd_designs';
+        $templates_table = $wpdb->prefix . 'cd_templates';
+        
+        $design = $wpdb->get_row($wpdb->prepare("
+            SELECT d.*, t.title as template_title 
+            FROM $designs_table d
+            LEFT JOIN $templates_table t ON d.template_id = t.id
+            WHERE d.id = %d
+        ", $design_id));
+        
+        if (!$design) {
+            wp_die(__('Design not found', 'clothing-designer'));
+            return;
+        }
+        
+        // Check user permission
+        $user_id = get_current_user_id();
+        
+        if ($user_id !== 0 && $design->user_id !== 0 && $design->user_id !== $user_id && !current_user_can('manage_options')) {
+            wp_die(__('You do not have permission to view this design', 'clothing-designer'));
+            return;
+        }
+        
+        // Output design view
+        include(CD_PLUGIN_DIR . 'templates/design-view.php');
+        exit;
     }
 }

@@ -272,9 +272,10 @@ class CD_File_Handler {
             $imagick = new Imagick();
             $imagick->readImage($ai_path);
             $imagick->setImageFormat('svg');
-            return $imagick->writeImage($svg_path);
+            $success = $imagick->writeImage($svg_path);
+            return [$success, $success ? '' : 'Failed to write SVG image'];
         } catch (Exception $e) {
-            return false;
+            return [false, $e->getMessage()];
         }
     }
     
@@ -297,8 +298,14 @@ class CD_File_Handler {
      * @return string Sanitized SVG content.
      */
     public function sanitize_svg($svg_content) {
+        $malicious_detected = false;
+        // Check for null or empty SVG content
+        if ($svg_content === null || trim($svg_content) === '') {
+            error_log('Clothing Designer: Empty SVG content provided for sanitization');
+            return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"></svg>';
+        }
 
-            // Check for potentially malicious strings before parsing
+        // Check for potentially malicious strings before parsing
         $suspicious_patterns = [
             '/javascript:/i',
             '/eval\s*\(/i',
@@ -311,9 +318,24 @@ class CD_File_Handler {
         
         foreach ($suspicious_patterns as $pattern) {
             if (preg_match($pattern, $svg_content)) {
-                // Replace with harmless SVG if suspicious content detected
-                return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text x="10" y="50" font-family="Arial">Sanitized SVG</text></svg>';
+                $malicious_detected = true;
+                // Replace with harmless SVG if suspicious content detected 
+                error_log('Clothing Designer: Potentially malicious pattern detected in SVG: ' . $pattern);
+                break;
             }
+        }
+        
+        if ($malicious_detected) {
+            // Return safe fallback SVG with warning
+            return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                <text x="10" y="50" font-family="Arial" font-size="12">Sanitized SVG</text>
+            </svg>';
+        }
+        
+        // If content doesn't contain SVG tag at all, reject it
+        if (stripos($svg_content, '<svg') === false) {
+            error_log('Clothing Designer: Content does not contain SVG tag');
+            return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"></svg>';
         }
 
         // Create a new DOMDocument
@@ -328,12 +350,15 @@ class CD_File_Handler {
         // Suppress warnings from malformed SVG
         $use_errors = libxml_use_internal_errors(true);
         
-        // Load SVG as XML
-        $success = $dom->loadXML($svg_content);
+           // Suppress libxml errors
+        $use_errors = libxml_use_internal_errors(true);
         
-        // Restore previous entity loader setting
-        if (function_exists('libxml_disable_entity_loader')) {
-            libxml_disable_entity_loader($old_value);
+        // Try loading as XML first
+        $success = false;
+        try {
+            $success = $dom->loadXML($svg_content);
+        } catch (Exception $e) {
+            error_log('Clothing Designer: Exception when loading SVG: ' . $e->getMessage());
         }
 
         // Get any errors
@@ -343,14 +368,31 @@ class CD_File_Handler {
         // Restore previous error handling setting
         libxml_use_internal_errors($use_errors);
         
+        // Restore previous entity loader setting
+        if (function_exists('libxml_disable_entity_loader')) {
+            libxml_disable_entity_loader($old_value);
+        }
+    
         // If loading failed, try as HTML
         if (!$success) {
+            error_log('Clothing Designer: Failed to load SVG as XML. Trying as HTML');
+        
+            // Log specific errors
+            foreach ($errors as $error) {
+                error_log('Clothing Designer: XML Error: ' . $error->message);
+            }
+
             // Attempt to load as HTML (some SVGs might be invalid XML but valid HTML)
             $dom = new DOMDocument();
-            $success = $dom->loadHTML('<div>' . $svg_content . '</div>');
+            try {
+                $success = $dom->loadHTML('<div>' . $svg_content . '</div>');
+            } catch (Exception $e) {
+                error_log('Clothing Designer: Exception when loading SVG as HTML: ' . $e->getMessage());
+            }
             
             // If still fails, return a minimal valid SVG
             if (!$success) {
+                error_log('Clothing Designer: Failed to load SVG as HTML. Returning fallback SVG');
                 return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"></svg>';
             }
             
@@ -358,15 +400,38 @@ class CD_File_Handler {
             $svg_element = $dom->getElementsByTagName('svg')->item(0);
             
             if (!$svg_element) {
+                error_log('Clothing Designer: No SVG element found in HTML');
                 return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"></svg>';
             }
         }
-        
+
+        // Get SVG element (for XML parsing)
+        $svg_element = $dom->getElementsByTagName('svg')->item(0);
+
+        if (!$svg_element) {
+            error_log('Clothing Designer: No SVG element found after parsing');
+            return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"></svg>';
+        }
+
+        // Ensure SVG has viewBox
+        if (!$svg_element->hasAttribute('viewBox')) {
+            // Try to construct viewBox from width/height
+            $width = $svg_element->hasAttribute('width') ? $svg_element->getAttribute('width') : '100';
+            $height = $svg_element->hasAttribute('height') ? $svg_element->getAttribute('height') : '100';
+            $svg_element->setAttribute('viewBox', "0 0 $width $height");
+        }
+
         // Remove potentially harmful elements and attributes
         $this->remove_svg_harmful_elements($dom);
         
         // Save clean SVG
-        return $dom->saveXML($dom->documentElement);
+        try {
+            $clean_svg = $dom->saveXML($svg_element);
+            return $clean_svg;
+        } catch (Exception $e) {
+            error_log('Clothing Designer: Exception when saving SVG: ' . $e->getMessage());
+            return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"></svg>';
+        }
     }
     
     /**
@@ -388,11 +453,21 @@ class CD_File_Handler {
             'handler',
             'listener',
             'annotation-xml',
-            'color-profile'
+            'color-profile',
+            'a',
+            'audio',
+            'video',
+            'html',
+            'body',
+            'head',
+            'meta',
+            'link',
+            'style'    
         );
         
         // Add more potentially harmful attributes
         $harmful_attributes = array(
+            // Event handlers
             'onload',
             'onclick',
             'onunload',
@@ -404,10 +479,26 @@ class CD_File_Handler {
             'onactivate',
             'onbegin',
             'onchange',
+            'onfocusin',
+            'onfocusout',
+            'onend',
+            'onmousedown',
+            'onmousemove',
+            'onmouseout',
+            'onmouseover',
+            'onmouseup',
+            'ontouchstart',
+            'ontouchmove',
+            'ontouchend',
+            'ontouchcancel',
+            
+            // Navigation/form attributes
             'formaction',
             'href',
             'xlink:href',
             'action',
+            
+            // Animation and content loading attributes
             'data',
             'from',
             'to',
@@ -416,20 +507,32 @@ class CD_File_Handler {
             'attributeName',
             'begin',
             'dur',
-            'requiredFeatures',
-            'requiredExtensions'
-        );
             
+            // External content attributes
+            'requiredFeatures',
+            'requiredExtensions',
+            'systemLanguage',
+            'externalResourcesRequired'
+        );
+        // Track statistics for logging
+        $removed_elements = 0;
+        $removed_attributes = 0;
+
         // Remove harmful elements
         foreach ($harmful_elements as $tag_name) {
             $elements = $dom->getElementsByTagName($tag_name);
             
             // Need to loop backwards as removing nodes changes the live NodeList
-            for ($i = $elements->length - 1; $i >= 0; $i--) {
-                $element = $elements->item($i);
-                
-                if ($element) {
+            $elements_to_remove = array();
+            for ($i = 0; $i < $elements->length; $i++) {
+                $elements_to_remove[] = $elements->item($i);
+            }
+            
+            // Now remove the elements
+            foreach ($elements_to_remove as $element) {
+                if ($element && $element->parentNode) {
                     $element->parentNode->removeChild($element);
+                    $removed_elements++;
                 }
             }
         }
@@ -443,18 +546,41 @@ class CD_File_Handler {
             foreach ($harmful_attributes as $attr_name) {
                 if ($element->hasAttribute($attr_name)) {
                     $element->removeAttribute($attr_name);
+                    $removed_attributes++;
                 }
             }
             
             // Check for javascript in style attributes
             if ($element->hasAttribute('style')) {
                 $style = $element->getAttribute('style');
-                
+                $banned_css_patterns = array(
+                    '/expression\s*\(/i',
+                    '/url\s*\(/i',      // Can be used for data URLs or external resources
+                    '/behavior\s*:/i',  // IE-specific
+                    '/javascript\s*:/i',
+                    '/@import\s/i',     // Could import external CSS
+                    '/position\s*:\s*fixed/i'  // Could create overlay that captures clicks
+                );
                 // Remove javascript from style
-                if (preg_match('/expression|javascript|behavior/i', $style)) {
+                 
+                $has_harmful_css = false;
+                foreach ($banned_css_patterns as $pattern) {
+                    if (preg_match($pattern, $style)) {
+                        $has_harmful_css = true;
+                        break;
+                    }
+                }
+                
+                if ($has_harmful_css) {
                     $element->removeAttribute('style');
+                    $removed_attributes++;
                 }
             }
+        }
+        
+        // Log statistics if anything was removed
+        if ($removed_elements > 0 || $removed_attributes > 0) {
+            error_log("Clothing Designer: Sanitized SVG - removed $removed_elements elements and $removed_attributes attributes");
         }
     }
     
@@ -585,6 +711,11 @@ class CD_File_Handler {
      * @return array|WP_Error Array of text elements or error.
      */
     public function extract_svg_text($svg_content) {
+        // Early validation
+        if (empty($svg_content)) {
+            return new WP_Error('empty_svg', __('Empty SVG content provided', 'clothing-designer'));
+        }
+
         // Create a new DOMDocument
         $dom = new DOMDocument();
         
@@ -595,18 +726,41 @@ class CD_File_Handler {
         $dom->loadXML($svg_content);
         
         // Restore previous error handling setting
+        $errors = libxml_get_errors();
         libxml_clear_errors();
         libxml_use_internal_errors($use_errors);
+        
+        // Check for parsing errors
+        if (!empty($errors)) {
+            // Log errors for debugging but try to continue
+            error_log('SVG parsing errors: ' . print_r($errors, true));
+        }
         
         // Get SVG element
         $svg = $dom->getElementsByTagName('svg')->item(0);
         
         if (!$svg) {
             return new WP_Error('invalid_svg', __('Invalid SVG: Root SVG element not found', 'clothing-designer'));
+        } 
+        
+        // Create XPath for handling namespaces properly
+        $xpath = new DOMXPath($dom);
+
+        // Register any namespaces
+        $namespaces = array();
+        foreach ($svg->attributes as $attr) {
+            if (strpos($attr->nodeName, 'xmlns:') === 0) {
+                $prefix = substr($attr->nodeName, 6);
+                $namespaces[$prefix] = $attr->nodeValue;
+                $xpath->registerNamespace($prefix, $attr->nodeValue);
+            }
         }
         
+        // Register default SVG namespace
+        $xpath->registerNamespace('svg', 'http://www.w3.org/2000/svg');
+        
         // Get text elements
-        $text_elements = $svg->getElementsByTagName('text');
+        $text_elements = $xpath->query('//svg:text | //text');
         $result = array();
         
         foreach ($text_elements as $index => $text) {
@@ -690,18 +844,6 @@ class CD_File_Handler {
             return new WP_Error('invalid_updates', __('Invalid text updates', 'clothing-designer'));
         }
 
-        if ($element && $element->nodeName === 'text') {
-            // Sanitize the new content
-            $new_content = sanitize_text_field($new_content);
-            
-            // Update text content
-            while ($element->firstChild) {
-                $element->removeChild($element->firstChild);
-            }
-            
-            $element->appendChild($dom->createTextNode($new_content));
-            $updated = true;
-        }
         
         // Create a new DOMDocument
         $dom = new DOMDocument();
@@ -740,8 +882,8 @@ class CD_File_Handler {
                     }
                 }
             }
-            
-            if ($element) {
+
+            if ($element && $element->nodeName === 'text') {
                 // Sanitize the new content
                 $new_content = sanitize_text_field($new_content);
                 
@@ -793,6 +935,8 @@ class CD_File_Handler {
         @exec($full_command . " 2>&1", $output, $return_var);
         
         $output_text = implode("\n", $output);
-        return [$return_var === 0, $output_text, $output_text];
+        $error_message = $return_var !== 0 ? 'Command failed with status ' . $return_var . ': ' . $output_text : '';
+
+        return [$return_var === 0, $output_text, $error_message];
     }
 }

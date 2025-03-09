@@ -87,16 +87,79 @@ class Clothing_Designer {
      * Plugins loaded.
      */
     public function plugins_loaded() {
-        load_plugin_textdomain('clothing-designer', false, dirname(CD_PLUGIN_BASENAME) . '/languages');
-        
-        // Initialize classes
-        CD_Admin::get_instance();
-        CD_Assets::get_instance();
-        CD_Template::get_instance();
-        CD_Shortcode::get_instance();
-        CD_Ajax::get_instance();
+        try {
+            load_plugin_textdomain('clothing-designer', false, dirname(CD_PLUGIN_BASENAME) . '/languages');
+            
+            // Check required directories
+            $this->check_required_directories();
+            
+            // Initialize classes
+            CD_Admin::get_instance();
+            CD_Assets::get_instance();
+            CD_Template::get_instance();
+            CD_Shortcode::get_instance();
+            CD_Ajax::get_instance();
+        } catch (Exception $e) {
+            // Log error
+            error_log('Clothing Designer Plugin Error: ' . $e->getMessage());
+            
+            // Display admin notice
+            add_action('admin_notices', function() use ($e) {
+                echo '<div class="error"><p><strong>Clothing Designer Error:</strong> ' . 
+                    esc_html($e->getMessage()) . '</p></div>';
+            });
+        }
     }
-    
+    /**
+     * Check required directories exist and are writable
+     */
+    private function check_required_directories() {
+        // Check uploads directory
+        if (!file_exists(CD_UPLOADS_DIR)) {
+            if (!wp_mkdir_p(CD_UPLOADS_DIR)) {
+                throw new Exception(
+                    sprintf(
+                        __('Unable to create uploads directory. Please ensure %s is writable.', 'clothing-designer'),
+                        dirname(CD_UPLOADS_DIR)
+                    )
+                );
+            }
+        }
+        
+        if (!is_writable(CD_UPLOADS_DIR)) {
+            throw new Exception(
+                sprintf(
+                    __('Uploads directory is not writable. Please check permissions for %s.', 'clothing-designer'),
+                    CD_UPLOADS_DIR
+                )
+            );
+        }
+        
+        // Check subdirectories
+        $required_subdirs = array('elements', 'designs');
+        foreach ($required_subdirs as $subdir) {
+            $dir_path = CD_UPLOADS_DIR . $subdir;
+            if (!file_exists($dir_path)) {
+                if (!wp_mkdir_p($dir_path)) {
+                    throw new Exception(
+                        sprintf(
+                            __('Unable to create %s directory. Please check permissions.', 'clothing-designer'),
+                            $subdir
+                        )
+                    );
+                }
+            }
+            
+            if (!is_writable($dir_path)) {
+                throw new Exception(
+                    sprintf(
+                        __('%s directory is not writable. Please check permissions.', 'clothing-designer'),
+                        $subdir
+                    )
+                );
+            }
+        }
+    }
     
     /**
      * Activate plugin.
@@ -130,23 +193,9 @@ class Clothing_Designer {
         
         $designs_table = $wpdb->prefix . 'cd_designs';
         $templates_table = $wpdb->prefix . 'cd_templates';
-        
-        $designs_sql = "CREATE TABLE $designs_table (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
-            user_id bigint(20) NOT NULL,
-            template_id bigint(20) NOT NULL,
-            design_data longtext NOT NULL,
-            preview_url varchar(255) NOT NULL,
-            created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY  (id),
-            KEY user_id (user_id),
-            KEY template_id (template_id),
-            CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES {$wpdb->users} (ID) ON DELETE CASCADE,
-            CONSTRAINT fk_template FOREIGN KEY (template_id) REFERENCES $templates_table (id) ON DELETE CASCADE
-        ) $charset_collate;";
-        
-        $templates_sql = "CREATE TABLE IF NOT EXISTS $templates_table (
+        $templates_views_table = $wpdb->prefix . 'cd_template_views';
+             
+        $templates_sql = "CREATE TABLE IF NOT EXISTS `{$templates_table}` (
             id bigint(20) NOT NULL AUTO_INCREMENT,
             title varchar(255) NOT NULL,
             description text NOT NULL,
@@ -155,13 +204,26 @@ class Clothing_Designer {
             thumbnail_url varchar(255) NOT NULL,
             status varchar(20) NOT NULL DEFAULT 'publish',
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY  (id)
+            updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id)
         ) $charset_collate;";
         
-        $templates_views_table = $wpdb->prefix . 'cd_template_views';
-        // Update templates table to support multiple views
-        $templates_views_sql = "CREATE TABLE IF NOT EXISTS $templates_views_table (
+        $designs_sql = "CREATE TABLE IF NOT EXISTS `{$designs_table}` (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) NOT NULL,
+            template_id bigint(20) NOT NULL,
+            design_data longtext NOT NULL,
+            preview_url varchar(255) NOT NULL,
+            is_compressed tinyint(1) NOT NULL DEFAULT 0,
+            is_chunked tinyint(1) NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY user_id (user_id),
+            KEY template_id (template_id)
+        ) $charset_collate;";
+        
+        $templates_views_sql = "CREATE TABLE IF NOT EXISTS `{$templates_views_table}` (
             id bigint(20) NOT NULL AUTO_INCREMENT,
             template_id bigint(20) NOT NULL,
             view_type varchar(50) NOT NULL,
@@ -169,14 +231,38 @@ class Clothing_Designer {
             file_type varchar(20) NOT NULL,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            KEY template_id (template_id),
-            CONSTRAINT fk_template_view FOREIGN KEY (template_id) REFERENCES $templates_table (id) ON DELETE CASCADE
+            KEY template_id (template_id)
         ) $charset_collate;";
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($designs_sql);
         dbDelta($templates_sql);
         dbDelta($templates_views_sql);
+
+        // Add foreign key constraints as separate ALTER TABLE commands
+        // Only add if the tables exist and MySQL version supports them
+        if ($this->check_mysql_version_for_foreign_keys()) {
+            $wpdb->query("ALTER TABLE `{$designs_table}` 
+                ADD CONSTRAINT fk_template 
+                FOREIGN KEY (template_id) 
+                REFERENCES `{$templates_table}`(id) 
+                ON DELETE CASCADE");
+                
+            $wpdb->query("ALTER TABLE `{$templates_views_table}` 
+                ADD CONSTRAINT fk_template_view 
+                FOREIGN KEY (template_id) 
+                REFERENCES `{$templates_table}`(id) 
+                ON DELETE CASCADE");
+        }
+        
+        // Add automatic timestamp updates for MySQL 5.6+
+        if ($this->check_mysql_version_for_timestamp_updates()) {
+            $wpdb->query("ALTER TABLE $templates_table 
+                MODIFY updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+                
+            $wpdb->query("ALTER TABLE $designs_table 
+                MODIFY updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+        
         
         // Add default options
         add_option('cd_options', array(
@@ -188,13 +274,35 @@ class Clothing_Designer {
         
         // Flush rewrite rules
         flush_rewrite_rules();
-    }
+    }}
     
     /**
      * Deactivate plugin.
      */
     public function deactivate_plugin() {
         flush_rewrite_rules();
+    }
+
+    /**
+     * Check if MySQL version supports foreign keys properly
+     * 
+     * @return boolean
+     */
+    private function check_mysql_version_for_foreign_keys() {
+        global $wpdb;
+        $mysql_version = $wpdb->db_version();
+        return version_compare($mysql_version, '5.6.0', '>=');
+    }
+
+    /**
+     * Check if MySQL version supports ON UPDATE CURRENT_TIMESTAMP
+     * 
+     * @return boolean
+     */
+    private function check_mysql_version_for_timestamp_updates() {
+        global $wpdb;
+        $mysql_version = $wpdb->db_version();
+        return version_compare($mysql_version, '5.6.5', '>=');
     }
 }
 
