@@ -7,8 +7,8 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 // Delete plugin database tables
 global $wpdb;
 $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}cd_designs");
-$wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}cd_templates");
 $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}cd_template_views");
+$wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}cd_templates");
 
 // Delete plugin options
 delete_option('cd_options');
