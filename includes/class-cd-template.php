@@ -838,7 +838,9 @@ class CD_Template {
         $design_id = isset($_POST['design_id']) ? intval($_POST['design_id']) : 0;
         $element_id = isset($_POST['element_id']) ? sanitize_text_field($_POST['element_id']) : '';
         $svg_content = isset($_POST['svg_content']) ? wp_unslash($_POST['svg_content']) : '';
-        
+        $view_types = isset($_POST['view_types']) ? sanitize_text_field($_POST['view_types']) : '';
+        error_log('Saving design with views: ' . $view_types);
+
         if ($design_id <= 0 || empty($element_id) || empty($svg_content)) {
             wp_send_json_error();
             return;
@@ -878,7 +880,11 @@ class CD_Template {
             array('%d')
         );
         
-        wp_send_json_success();
+        if ($result === false) {
+            wp_send_json_error(array('message' => 'Database update failed', 'error' => $wpdb->last_error));
+        } else {
+            wp_send_json_success(array('updated' => true, 'view' => $view_type));
+        }
     }
     /**
      * Get template with all views.

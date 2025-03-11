@@ -470,7 +470,17 @@
                     this.hideLoading();
 
                     if (response.success) {
-                        this.design = response.data.design;
+                        this.design = response.data.design; 
+                        const designData = JSON.parse(this.design.design_data);
+                        console.log("Loaded design with views:", designData.views ? Object.keys(designData.views) : "none");
+                        
+                        // Enable view buttons for available views
+                        if (designData.views) {
+                            Object.keys(designData.views).forEach(viewType => {
+                                this.container.find(`.cd-view-btn[data-view="${viewType}"]`).prop('disabled', false);
+                            });
+                        }
+                        
                         this.loadDesignElements();
                     } else {
                         alert(response.data.message || 'Error loading design');
@@ -494,9 +504,17 @@
             try {
                 const designData = JSON.parse(this.design.design_data);
 
-                if (designData.elements) {
+                if (designData.views && designData.views[this.currentView]) {
+                    const viewElements = designData.views[this.currentView].elements || [];
+            
+                    // Clear existing elements on canvas
+                    const templateObj = this.canvas.getObjects().find(obj => obj.name === 'template');
+                    this.canvas.clear();
+                    if (templateObj) {
+                        this.canvas.add(templateObj);
+                    }
                     // Process each element
-                    designData.elements.forEach(element => {
+                    viewElements.forEach(element => {
                         switch (element.type) {
                             case 'svg':
                                 this.loadSVGElement(element);
@@ -1730,20 +1748,19 @@
                                 default:
                                     return baseData;
                             }
-                        })
+                        }),
+                        templateData: {
+                            file_url: this.templateViews[viewType].file_url,
+                            file_type: this.templateViews[viewType].file_type
+                        }
                     };
                 }
             });
             
-            // Debug: Log the JSON data size
+            // Debug: Log the JSON data size and Save design metadata in json
             const designDataJSON = JSON.stringify(designData);
             console.log('Design data JSON size: ' + designDataJSON + ' bytes');
             
-            // Step 1: Save design metadata first (without large SVG content)
-            const metadataOnly = {
-                currentView: designData.currentView,
-                views: {}
-            };
             
        /*      // Process each view to remove large content
             Object.keys(designData.views).forEach(viewType => {
@@ -1773,7 +1790,8 @@
                     nonce: cd_vars.nonce,
                     template_id: this.options.templateId,
                     design_data: designDataJSON,
-                    preview_image: previewImage
+                    preview_image: previewImage,
+                    view_types: Object.keys(designData.views).join(',') // Send list of included views
                 },
                 success: (response) => {
                     if (response.success) {

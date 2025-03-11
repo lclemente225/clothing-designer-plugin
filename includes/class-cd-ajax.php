@@ -400,14 +400,15 @@ class CD_Ajax {
         // Get design data
         $template_id = isset($_POST['template_id']) ? intval($_POST['template_id']) : 0;
         $design_data = isset($_POST['design_data']) ? $_POST['design_data'] : '';
-        $preview_image = isset($_POST['preview_image']) ? $_POST['preview_image'] : '';
-        
+        $preview_images = isset($_POST['preview_images']) ? $_POST['preview_images'] : '';
+        $view_types = isset($_POST['view_types']) ? sanitize_text_field($_POST['view_types']) : '';
+
         // Validate data
         if (empty($template_id) || empty($design_data)) {
             wp_send_json_error(array('message' => __('Invalid design data', 'clothing-designer')));
             return;
         }
-        
+
         // Check if template exists
         global $wpdb;
         $templates_table = $wpdb->prefix . 'cd_templates';
@@ -433,16 +434,40 @@ class CD_Ajax {
         }
         
         // Save preview image
-        $preview_url = '';
-        if (!empty($preview_image)) {
-            $preview_url = $this->save_preview_image($preview_image);
+        
+        $preview_urls = array();
+        if (!empty($preview_images)) {
+            $images_data = json_decode($preview_images, true);
             
-            if (empty($preview_url)) {
-                wp_send_json_error(array('message' => __('Failed to save preview image', 'clothing-designer')));
-                return;
+            if (is_array($images_data)) {
+                foreach ($images_data as $view_type => $image_data) {
+                    $preview_urls[$view_type] = $this->save_preview_image($image_data, $view_type);
+                }
             }
         }
         
+        $parsed_design_data = json_decode($design_data, true);
+        // Add preview URLs to design data
+        if (is_array($parsed_design_data) && isset($parsed_design_data['views'])) {
+            foreach ($parsed_design_data['views'] as $view_type => &$view_data) {
+                if (isset($preview_urls[$view_type])) {
+                    $view_data['preview_url'] = $preview_urls[$view_type];
+                }
+            }
+        }    
+        
+        // Re-encode the modified design data
+        $enhanced_design_data = json_encode($parsed_design_data);
+
+         // Save main preview URL (from current view) to the main record
+        $main_preview_url = '';
+        if (isset($parsed_design_data['currentView']) && 
+            isset($preview_urls[$parsed_design_data['currentView']])) {
+            $main_preview_url = $preview_urls[$parsed_design_data['currentView']];
+        } else if (!empty($preview_urls)) {
+            // Fallback to first preview if current view preview not available
+            $main_preview_url = reset($preview_urls);
+        }
         // Insert or update design
         $designs_table = $wpdb->prefix . 'cd_designs';
         $design_id = isset($_POST['design_id']) ? intval($_POST['design_id']) : 0;
@@ -450,8 +475,8 @@ class CD_Ajax {
         $data = array(
             'user_id' => $user_id,
             'template_id' => $template_id,
-            'design_data' => $design_data,
-            'preview_url' => $preview_url
+            'design_data' => $enhanced_design_data,
+            'preview_url' => $main_preview_url
         );
         
         $format = array(
@@ -488,7 +513,9 @@ class CD_Ajax {
         
         wp_send_json_success(array(
             'message' => __('Design saved successfully', 'clothing-designer'),
-            'design_id' => $design_id
+            'design_id' => $design_id,
+            'preview_urls' => $preview_urls,
+            'views' => explode(',', $view_types),
         ));
     }
 
@@ -498,7 +525,7 @@ class CD_Ajax {
      * @param string $data_url Data URL
      * @return string URL
      */
-    private function save_preview_image($data_url) {
+    private function save_preview_image($data_url, $view_type = 'front') {
             // Check if data URL is valid
         if (empty($data_url) || !is_string($data_url)) {
             error_log('Clothing Designer: Invalid preview image data');
@@ -544,7 +571,7 @@ class CD_Ajax {
             }
             $data = $resized_data;
         }
-        
+
         // Create upload directory if it doesn't exist
         if (!file_exists(CD_UPLOADS_DIR)) {
             $dir_created = wp_mkdir_p(CD_UPLOADS_DIR);
@@ -562,7 +589,6 @@ class CD_Ajax {
             error_log('Clothing Designer: Uploads directory is not writable: ' . CD_UPLOADS_DIR);
             return '';
         }
-        
         
         // Generate filename
         $filename = 'preview-' . time() . '-' . wp_generate_password(6, false) . '.' . $type;
