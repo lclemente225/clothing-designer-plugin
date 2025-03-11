@@ -250,19 +250,39 @@ class Clothing_Designer {
         // Add foreign key constraints as separate ALTER TABLE commands
         // Only add if the tables exist and MySQL version supports them
         if ($this->check_mysql_version_for_foreign_keys()) {
-            $wpdb->query("ALTER TABLE `{$designs_table}` 
-                ADD CONSTRAINT fk_template 
-                FOREIGN KEY (template_id) 
-                REFERENCES `{$templates_table}`(id) 
-                ON DELETE CASCADE");
-                
-            $wpdb->query("ALTER TABLE `{$templates_views_table}` 
-                ADD CONSTRAINT fk_template_view 
-                FOREIGN KEY (template_id) 
-                REFERENCES `{$templates_table}`(id) 
-                ON DELETE CASCADE");
+            // First check if the constraint already exists
+            $constraint_exists = $wpdb->get_var(
+                "SELECT COUNT(*)
+                 FROM information_schema.TABLE_CONSTRAINTS 
+                 WHERE CONSTRAINT_SCHEMA = DATABASE() 
+                 AND CONSTRAINT_NAME = 'fk_template'
+                 AND TABLE_NAME = '{$designs_table}'"
+            );
+            
+            if (!$constraint_exists) {
+                $wpdb->query("ALTER TABLE `{$designs_table}` 
+                    ADD CONSTRAINT fk_template_design
+                    FOREIGN KEY (template_id) 
+                    REFERENCES `{$templates_table}`(id) 
+                    ON DELETE CASCADE");
+            }
+            
+            $constraint_exists = $wpdb->get_var(
+                "SELECT COUNT(*)
+                 FROM information_schema.TABLE_CONSTRAINTS 
+                 WHERE CONSTRAINT_SCHEMA = DATABASE() 
+                 AND CONSTRAINT_NAME = 'fk_template_view'
+                 AND TABLE_NAME = '{$templates_views_table}'"
+            );
+            
+            if (!$constraint_exists) {
+                $wpdb->query("ALTER TABLE `{$templates_views_table}` 
+                    ADD CONSTRAINT fk_template_view
+                    FOREIGN KEY (template_id) 
+                    REFERENCES `{$templates_table}`(id) 
+                    ON DELETE CASCADE");
+            }
         }
-        
         // Add automatic timestamp updates for MySQL 5.6+
         if ($this->check_mysql_version_for_timestamp_updates()) {
             $wpdb->query("ALTER TABLE `{$templates_table}`

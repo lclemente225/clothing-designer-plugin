@@ -70,7 +70,8 @@ class CD_Template {
     public function get_template($template_id) {
         global $wpdb;
         $templates_table = $wpdb->prefix . 'cd_templates';
-        
+        error_log('CD: Getting template only for template id: ' . $template_id);
+
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$templates_table}` WHERE id = %d AND status = 'publish'", $template_id));
     }
     
@@ -81,9 +82,13 @@ class CD_Template {
      * @return string Template file contents.
      */
     public function get_template_contents($file_url) {
-        $error_log_prefix = 'Clothing Designer: Error loading template file';
         error_log('CD: Getting template contents for URL: ' . $file_url);
-
+        
+        if (empty($file_url)) {
+            error_log('CD: Empty file URL provided');
+            return '';
+        }
+        
         // Method 1: Convert URL to server path if it's a local file
         if (strpos($file_url, site_url()) === 0) {
             $file_path = str_replace(site_url('/'), ABSPATH, $file_url);
@@ -91,9 +96,12 @@ class CD_Template {
             if (file_exists($file_path)) {
                 $content = file_get_contents($file_path);
                 if ($content !== false) {
+                    error_log('CD: Successfully loaded file content from path (Method 1): ' . $file_path . $c);
                     return $content;
                 }
-                error_log("{$error_log_prefix} from path: {$file_path}");
+                error_log('CD: Failed to get file contents from path (Method 1): ' . $file_path);
+            } else {
+                error_log('CD: File does not exist at path (Method 1): ' . $file_path);
             }
         }
         
@@ -105,9 +113,12 @@ class CD_Template {
             if (file_exists($file_path)) {
                 $content = file_get_contents($file_path);
                 if ($content !== false) {
+                    error_log('CD: Successfully loaded file content from uploads (Method 2): ' . $file_path);
                     return $content;
                 }
-                error_log("{$error_log_prefix} from uploads: {$file_path}");
+                error_log('CD: Failed to get file contents from uploads (Method 2): ' . $file_path);
+            } else {
+                error_log('CD: File does not exist in uploads (Method 2): ' . $file_path);
             }
         }
         
@@ -123,29 +134,38 @@ class CD_Template {
             if (isset($wp_filesystem) && !empty($file_path)) {
                 $content = $wp_filesystem->get_contents($file_path);
                 if ($content !== false) {
+                    error_log('CD: Successfully loaded file content using WP_Filesystem (Method 3)');
                     return $content;
                 }
-                error_log("{$error_log_prefix} using WP_Filesystem: {$file_path}");
+                error_log('CD: Failed to get file contents using WP_Filesystem (Method 3)');
+            } else {
+                error_log('CD: WP_Filesystem not available or file path empty (Method 3)');
             }
         }
         
         // Method 4: Fetch via HTTP as last resort
+        error_log('CD: Trying to fetch content via HTTP (Method 4): ' . $file_url);
         $response = wp_remote_get($file_url, array(
             'timeout' => 30, // Longer timeout for large files
             'sslverify' => false
         ));
         
         if (is_wp_error($response)) {
-            error_log("{$error_log_prefix} via HTTP: " . $response->get_error_message());
+            error_log('CD: WP Error fetching URL: ' . $response->get_error_message());
             return '';
         }
-
+        
         $content = wp_remote_retrieve_body($response);
-        error_log('CD: Content length: ' . strlen($content));
+        
         if (empty($content)) {
-            error_log("{$error_log_prefix}: Empty content received from {$file_url}");
+            error_log('CD: Empty content received from HTTP request');
+            return '';
         }
-        return $content;
+        $content = wp_remote_retrieve_body($response);
+        if (!empty($content)) {
+            error_log('CD: Successfully loaded file content via HTTP with length: ' . strlen($content) . ' bytes');
+            return $content;
+        }
     }
     
     /**
@@ -338,7 +358,8 @@ class CD_Template {
         
         // Get template ID
         $template_id = isset($_POST['template_id']) ? intval($_POST['template_id']) : 0;
-        
+        error_log('ajax get template check for template id' . $template_id);
+
         if ($template_id <= 0) {
             wp_send_json_error(array('message' => __('Invalid template ID', 'clothing-designer')));
             return;
@@ -346,14 +367,24 @@ class CD_Template {
         
         // Get template
         $template = $this->get_template($template_id);
-        
+        error_log('ajax get template check template' . json_encode($template));
+
         if (!$template) {
             wp_send_json_error(array('message' => __('Template not found', 'clothing-designer')));
             return;
         }
         
+        // Get template views
+        global $wpdb;
+        $template_views_table = $wpdb->prefix . 'cd_template_views';
+        
+        // Get the front view specifically
+        $template_view = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM `{$template_views_table}` WHERE template_id = %d AND view_type = 'front'",
+            $template_id
+        ));
         // Get template file contents
-        $file_contents = $this->get_template_contents($template->file_url);
+        $file_contents = $this->get_template_contents($template_view->file_url);
         
         if (empty($file_contents)) {
             wp_send_json_error(array('message' => __('Failed to load template file', 'clothing-designer')));
@@ -364,12 +395,13 @@ class CD_Template {
         $template_data = array(
             'id' => $template->id,
             'title' => $template->title,
-            'file_url' => $template->file_url,
-            'file_type' => $template->file_type,
+            'file_url' => $template_view->file_url,
+            'file_type' => $template_view->file_type,
             'content' => $file_contents,
         );
         
         wp_send_json_success(array('template' => $template_data));
+        return json_encode($template_data);
     }
     
     /**
@@ -543,15 +575,17 @@ class CD_Template {
         
         // Get design ID
         $design_id = isset($_POST['design_id']) ? intval($_POST['design_id']) : 0;
-        
+        // Get design
+        $design = $this->get_design($design_id);
+        // Get template
+        $template = $this->get_template($design->template_id);
+        // Get template file contents
+        $file_contents = $this->get_template_contents($template->file_url);
+
         if ($design_id <= 0) {
             wp_send_json_error(array('message' => __('Invalid design ID', 'clothing-designer')));
             return;
         }
-        
-        // Get design
-        $design = $this->get_design($design_id);
-        
         if (!$design) {
             wp_send_json_error(array('message' => __('Design not found', 'clothing-designer')));
             return;
@@ -561,19 +595,10 @@ class CD_Template {
             wp_send_json_error(array('message' => __('You do not have permission to access this design', 'clothing-designer')));
             return;
         }
-        
-        
-        // Get template
-        $template = $this->get_template($design->template_id);
-        
         if (!$template) {
             wp_send_json_error(array('message' => __('Template not found', 'clothing-designer')));
             return;
         }
-        
-        // Get template file contents
-        $file_contents = $this->get_template_contents($template->file_url);
-        
         if (empty($file_contents)) {
             wp_send_json_error(array('message' => __('Failed to load template file', 'clothing-designer')));
             return;
@@ -858,7 +883,8 @@ class CD_Template {
         // Get template views
         global $wpdb;
         $template_views_table = $wpdb->prefix . 'cd_template_views';
-        
+        error_log(message: 'CD: check template Id' . $template_id);
+
         $views = array();
         $view_results = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM `{$template_views_table}` WHERE template_id = %d",
@@ -867,28 +893,36 @@ class CD_Template {
         
         // Front view is the main template if no specific views are set
         if (empty($view_results)) {
-            error_log('CD: No specific views found, using main template as front view');;
+            error_log(message: 'CD: No specific views found, using main template as front view');
             $content = $this->get_template_contents($template->file_url);
-            $views['front'] = array(
-                'id' => 0,
-                'template_id' => $template_id,
-                'view_type' => 'front',
-                'file_url' => $template->file_url,
-                'file_type' => $template->file_type,
-                'content' => $this->get_template_contents($template->file_url)
-            );
+            if (!empty($content)) {
+                $views['front'] = array(
+                    'id' => 0,
+                    'template_id' => $template_id,
+                    'view_type' => 'front',
+                    'file_url' => $template->file_url,
+                    'file_type' => $template->file_type,
+                    'content' => $content 
+                );
+                error_log('CD: Added front view with content length: ' . strlen($content));
+            }
         } else {
             foreach ($view_results as $view) {
+                error_log('CD: Processing view type: ' . $view->view_type);
                 $content = $this->get_template_contents($view->file_url);
-                
-                $views[$view->view_type] = array(
-                    'id' => $view->id,
-                    'template_id' => $view->template_id,
-                    'view_type' => $view->view_type,
-                    'file_url' => $view->file_url,
-                    'file_type' => $view->file_type,
-                    'content' => $content
-                );
+                if (!empty($content)) {
+                    $views[$view->view_type] = array(
+                        'id' => $view->id,
+                        'template_id' => $view->template_id,
+                        'view_type' => $view->view_type,
+                        'file_url' => $view->file_url,
+                        'file_type' => $view->file_type,
+                        'content' => $content  // Make sure this is included
+                    );
+                    error_log('CD: Added view: ' . $view->view_type . ' with content length: ' . strlen($content));
+                }else {
+                    error_log('CD: Failed to get content for view: ' . $view->view_type);
+                }
             }
             // Make sure front view exists (if not already defined)
             if (!isset($views['front']) && !empty($view_results)) {
@@ -903,6 +937,8 @@ class CD_Template {
                     'file_type' => $template->file_type,
                     'content' => $content
                 );
+            }else {
+                error_log('CD: Failed to get content for default front view');
             }
         }
         

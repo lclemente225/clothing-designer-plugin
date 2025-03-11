@@ -64,7 +64,7 @@
             ['front', 'back', 'left', 'right'].forEach(view => {
                 this.designLayers[view] = [];
             });
-
+            console.log("Initial designLayers:", this.designLayers);
             // Initialize
             this.init();
         }
@@ -638,65 +638,87 @@
          *
          * @param {Object} svgData SVG data
          */
-        addSVG(svgData) { 
-            if (!svgData || !svgData.content) {
-                console.error('Invalid SVG data provided');
-                alert(cd_vars.messages.invalid_file || 'Invalid SVG file');
+        addSVG(svgData) {     
+            // Add a guard to prevent multiple calls
+            if (this._processingAddSVG) {
+                console.warn('Already processing SVG, skipping duplicate call');
                 return;
             }
+            console.log("add svg function: ", svgData)
+            this._processingAddSVG = true;
+            if (!svgData || !svgData.content) {
+                console.error('Invalid SVG data provided', svgData);
+                alert(cd_vars.messages.invalid_file || 'Invalid SVG file');
+                return;
+            }   
+            
+            // Basic validation of SVG content
+            if (!svgData.content.includes('<svg') || !svgData.content.includes('</svg>')) {
+                console.error('Invalid SVG structure, missing required tags');
+                alert('The file does not appear to be a valid SVG');
+                this._processingAddSVG = false;
+                return;
+            }
+            setTimeout(() => {
+                try{
+                    fabric.loadSVGFromString(svgData.content, (objects, options) => {
+                    if (!objects || objects.length === 0) {
+                        console.error('No SVG objects loaded');
+                        alert(cd_vars.messages.invalid_svg || 'Invalid SVG content');
+                        this._processingAddSVG = false;
+                        return;
+                    }
 
-            try{
-                fabric.loadSVGFromString(svgData.content, (objects, options) => {
-                if (!objects || objects.length === 0) {
-                    console.error('No SVG objects loaded');
-                    alert(cd_vars.messages.invalid_svg || 'Invalid SVG content');
-                    return;
-                }
-
-                const svgGroup = new fabric.Group(objects, {
-                    left: this.canvas.width / 2,
-                    top: this.canvas.height / 2,
-                    name: 'svg-element',
-                    originX: 'center',
-                    originY: 'center'
-                });
-
-                    // Scale to reasonable size
-                    const maxDimension = Math.min(this.canvas.width, this.canvas.height) * 0.5;
-                    const scale = maxDimension / Math.max(svgGroup.width, svgGroup.height);
-                    svgGroup.scale(scale);
-
-                    // Add to canvas
-                    this.canvas.add(svgGroup);
-                    this.canvas.setActiveObject(svgGroup);
-                    this.canvas.renderAll();
-
-                    // Add to design layers
-                    const layerId = this.generateId();
-                    this.designLayers[this.currentView].push({
-                        id: layerId,
-                        name: svgData.file_name || 'SVG Element',
-                        type: 'svg',
-                        object: svgGroup,
-                        svg_content: svgData.content,
-                        file_url: svgData.file_url,
-                        text_elements: svgData.text_elements || [],
-                        editable: svgData.editable || false
+                    const svgGroup = new fabric.Group(objects, {
+                        left: this.canvas.width / 2,
+                        top: this.canvas.height / 2,
+                        name: 'svg-element',
+                        originX: 'center',
+                        originY: 'center'
                     });
 
-                    this.updateLayersPanel();
-                    // If the SVG has editable text, show text editing options
-                    if (svgData.editable && svgData.text_elements && svgData.text_elements.length > 0) {
-                        this.showEditableSVGText(layerId, svgData.text_elements);
-                    }
-                }, (error) => {
-                    console.error('Error loading SVG:', error);
-                    alert(cd_vars.messages.error_loading_svg || 'Error loading SVG');
-                }, { crossOrigin: 'anonymous' });
-            }catch (e) {
-                console.error('Exception when processing SVG:', e);
-                alert(cd_vars.messages.svg_processing_error || 'Error processing SVG');
-            }
+                        // Scale to reasonable size
+                        const maxDimension = Math.min(this.canvas.width, this.canvas.height) * 0.5;
+                        const scale = maxDimension / Math.max(svgGroup.width, svgGroup.height);
+                        svgGroup.scale(scale);
+
+                        // Add to canvas
+                        this.canvas.add(svgGroup);
+                        this.canvas.setActiveObject(svgGroup);
+                        this.canvas.renderAll();
+
+                        // Add to design layers
+                        const layerId = this.generateId();
+                        this.designLayers[this.currentView].push({
+                            id: layerId,
+                            name: svgData.file_name || 'SVG Element',
+                            type: 'svg',
+                            object: svgGroup,
+                            svg_content: svgData.content,
+                            file_url: svgData.file_url,
+                            text_elements: svgData.text_elements || [],
+                            editable: svgData.editable || false
+                        });
+
+                        this.updateLayersPanel();
+                        // If the SVG has editable text, show text editing options
+                        if (svgData.editable && svgData.text_elements && svgData.text_elements.length > 0) {
+                            this.showEditableSVGText(layerId, svgData.text_elements);
+                            this._processingAddSVG = false;
+                        }
+                    }, (error) => {
+                        console.error('Error loading SVG:', {
+                            error: error,
+                            svgContentLength: svgData.content ? svgData.content.length : 0,
+                            svgContentPreview: svgData.content ? svgData.content.substring(0, 100) + '...' : 'none'
+                        });
+                        alert(cd_vars.messages.error_loading_svg || 'Error loading SVG');
+                    }, { crossOrigin: 'anonymous' });
+                }catch (e) {
+                    console.error('Exception when processing SVG:', e);
+                    alert(cd_vars.messages.svg_processing_error || 'Error processing SVG');
+                }
+            }, 100)
         }
 
         /**
@@ -1270,73 +1292,122 @@
 
         // Load template for specific view
         loadViewTemplate(viewType) {
-            this.showLoading();
+            try{
+                let viewBox = [];
+                this.showLoading();
             
-            // Clear canvas
-            this.canvas.clear();
-            
-            // Load template view
-            const template = this.templateViews[viewType];
-            console.log("loading template view - clothing-designer.js 1282", viewType, template)
-            
-            if (template.file_type === 'svg') {
-                fabric.loadSVGFromString(template.content, (objects, options) => {
-                    // Extract SVG dimensions from viewBox
-                    let viewBox = [0, 0, 300, 150];
-                    const viewBoxMatch = template.content.match(/viewBox=['"]([^'"]+)['"]/);
-                    if (viewBoxMatch && viewBoxMatch[1]) {
-                        viewBox = viewBoxMatch[1].split(/[\s,]+/).map(Number);
+                // Clear canvas
+                this.canvas.clear();
+                
+                // Load template view
+                const templateObj = this.templateViews[viewType];
+                console.log("loading template view - clothing-designer.js 1282", viewType, JSON.stringify(this.templateViews))
+                if (!templateObj.content && templateObj.file_url) {
+                    // Need to fetch the SVG content
+                    fetch(templateObj.file_url)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Network response was not ok');
+                            }
+                            return response.text();
+                        })
+                        .then(content => {
+                            // Save the content for future use
+                            templateObj.content = content;
+                            console.log("template.content", templateObj.content, viewBox)
+                            fabric.loadSVGFromString(templateObj.content, (objects, options) => {
+                                // Extract SVG dimensions from viewBox
+                                viewBox = [0, 0, 300, 150];
+                                const viewBoxMatch = templateObj.content.match(/viewBox=['"]([^'"]+)['"]/);
+                                if (viewBoxMatch && viewBoxMatch[1]) {
+                                    viewBox = viewBoxMatch[1].split(/[\s,]+/).map(Number);
+                                }
+                                console.log("template.content", templateObj.content, viewBoxMatch)
+                                this.renderTemplateView(objects, templateObj, viewBox);
+                            });
+                        })
+                        .catch(error => {
+                            console.error('Error fetching template content:', error);
+                            this.hideLoading();
+                            this.showError("Failed to load template: " + error.message);
+                        });
+                } else {
+                    if (templateObj.file_type === 'svg') {
+                        fabric.loadSVGFromString(templateObj.content, (objects, options) => {
+                            // Extract SVG dimensions from viewBox
+                            let viewBox = [0, 0, 300, 150];
+                            const viewBoxMatch = templateObj.content.match(/viewBox=['"]([^'"]+)['"]/);
+                            if (viewBoxMatch && viewBoxMatch[1]) {
+                                viewBox = viewBoxMatch[1].split(/[\s,]+/).map(Number);
+                            }
+                            console.log("template.content", templateObj.content, viewBox)
+                            this.renderTemplateView(objects, templateObj, viewBox);
+                        });
+                    } else if (['png', 'jpg', 'jpeg'].includes(templateObj.file_type)) {
+                        fabric.Image.fromURL(templateObj.file_url, (img) => {
+                            this.renderTemplateImageView(img, templateObj);
+                        });
                     }
-                    this.renderTemplateView(objects, template, viewBox);
-                });
-            } else if (['png', 'jpg', 'jpeg'].includes(template.file_type)) {
-                fabric.Image.fromURL(template.file_url, (img) => {
-                    this.renderTemplateImageView(img, template);
-                });
+                }
+                
+            }catch(e){
+                console.log("error in loadviewtemplate", e)
             }
         }
 
         // Render template view
         renderTemplateView(objects, template, viewBox) {
-            // Create template group
-            const templateGroup = new fabric.Group(objects, {
-                selectable: false,
-                evented: false,
-                hasControls: false,
-                hasBorders: false,
-                lockMovementX: true,
-                lockMovementY: true,
-                lockRotation: true,
-                lockScalingX: true,
-                lockScalingY: true,
-                lockSkewingX: true,
-                lockSkewingY: true,
-                name: 'template'
-            });
-              
-            // Set dimensions and position
-            const viewBoxWidth = viewBox[2] - viewBox[0];
-            const viewBoxHeight = viewBox[3] - viewBox[1];
-            const scaleX = this.canvas.width / viewBoxWidth;
-            const scaleY = this.canvas.height / viewBoxHeight;
-            const scale = Math.min(scaleX, scaleY) * 0.9;
-            
-            templateGroup.set({
-                scaleX: scale,
-                scaleY: scale,
-                left: this.canvas.width / 2,
-                top: this.canvas.height / 2,
-                originX: 'center',
-                originY: 'center'
-            });
-            
-            // Add to canvas
-            this.canvas.add(templateGroup);
-            
-            // Load saved layers for this view
-            this.loadViewLayers(this.currentView);
-            
-            this.hideLoading();
+            try{
+                  // Check if objects is valid for creating a group
+                if (!objects || !Array.isArray(objects) || objects.length === 0) {
+                    console.error("No valid SVG objects to render for view", this.currentView);
+                    this.hideLoading();
+                    this.showError("Failed to load template view: no valid SVG objects");
+                    return;
+                }
+                
+                // Create template group
+                const templateGroup = new fabric.Group(objects, {
+                    selectable: false,
+                    evented: false,
+                    hasControls: false,
+                    hasBorders: false,
+                    lockMovementX: true,
+                    lockMovementY: true,
+                    lockRotation: true,
+                    lockScalingX: true,
+                    lockScalingY: true,
+                    lockSkewingX: true,
+                    lockSkewingY: true,
+                    name: 'template'
+                });
+                console.log("check render template view", objects, viewBox);
+                // Set dimensions and position
+                const viewBoxWidth = viewBox[2] - viewBox[0];
+                const viewBoxHeight = viewBox[3] - viewBox[1];
+                const scaleX = this.canvas.width / viewBoxWidth;
+                const scaleY = this.canvas.height / viewBoxHeight;
+                const scale = Math.min(scaleX, scaleY) * 0.9;
+                
+                templateGroup.set({
+                    scaleX: scale,
+                    scaleY: scale,
+                    left: this.canvas.width / 2,
+                    top: this.canvas.height / 2,
+                    originX: 'center',
+                    originY: 'center'
+                });
+                
+                // Add to canvas
+                this.canvas.add(templateGroup);
+                
+                // Load saved layers for this view
+                this.loadViewLayers(this.currentView);
+                
+                this.hideLoading();
+            }catch(err){
+                console.log("renderTemplateView Error! ", err);
+            }
         }
 
         /**
@@ -1388,7 +1459,7 @@
         // Load saved layers for a view
         loadViewLayers(viewType) {
             const layers = this.designLayers[viewType] || [];
-            
+            console.log("load view layers check: ", layers)
             layers.forEach(layer => {
                 // Add layer object to canvas
                 this.canvas.add(layer.object);
@@ -1422,13 +1493,11 @@
                     if (response.success) {
                         this.template = response.data.template;
                         this.templateViews = response.data.views;
-                        console.log('Template:', this.template);
-                        console.log('Views available:', Object.keys(this.templateViews));
+                        console.log('Views available:', Object.keys(this.templateViews), this.template);
                         // Enable only the view buttons for which we have data
                         Object.keys(this.templateViews).forEach(viewType => {
                             this.container.find(`.cd-view-btn[data-view="${viewType}"]`).prop('disabled', false);
                         });
-                
                         // Load front view by default
                         if (this.templateViews.front) {
                             this.currentView = 'front';
@@ -1590,7 +1659,7 @@
 
         saveDesign() {
             this.showLoading();
-            
+            console.log("activate save design")
             // Save current view first
             this.saveCurrentViewLayers();
             
@@ -1622,6 +1691,7 @@
                 if (this.templateViews[viewType]) {
                     designData.views[viewType] = {
                         elements: this.designLayers[viewType].map(layer => {
+                            console.log("save design check layers: ", layer)
                             const baseData = {
                                 id: layer.id,
                                 name: layer.name,
@@ -1734,6 +1804,7 @@
                 
                 // Update the positions and properties of existing layers
                 this.designLayers[this.currentView].forEach(layer => {
+                    console.log("check save current view layers :", layer)
                     if (layer.object) {
                         // Update properties from the object on canvas
                         const obj = objects.find(o => o === layer.object);
@@ -1809,7 +1880,7 @@
                         if (processed === svgElements.length) {
                             // Continue even with errors
                             this.hideLoading();
-                            alert(cd_vars.messages.save_success);
+                            alert("Error:! ",cd_vars.messages.save_success);
                             this.options.designId = designId;
                         }
                     }
