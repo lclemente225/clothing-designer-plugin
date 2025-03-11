@@ -425,15 +425,40 @@ class CD_Template {
         
         // Get template ID
         $template_id = isset($_POST['template_id']) ? intval($_POST['template_id']) : 0;
-        
+        $design_data = isset($_POST['design_data']) ? wp_unslash($_POST['design_data']) : '';
+        $preview_image = isset($_POST['preview_image']) ? $_POST['preview_image'] : '';
         if ($template_id <= 0) {
             wp_send_json_error(array('message' => __('Invalid template ID', 'clothing-designer')));
             return;
         }
         
-        // Get design data
-        $design_data = isset($_POST['design_data']) ? $_POST['design_data'] : '';
-
+        $preview_url = '';
+        if (!empty($preview_image)) {
+            // Extract the base64 data
+            $image_parts = explode(';base64,', $preview_image);
+            
+            // Make sure we have valid base64 data
+            if (count($image_parts) === 2) {
+                $image_data = base64_decode($image_parts[1]);
+                
+                // Generate a unique filename
+                $filename = 'design-preview-' . uniqid() . '.png';
+                $upload_dir = CD_UPLOADS_DIR;
+                $file_path = $upload_dir . $filename;
+                
+                // Ensure directory exists
+                if (!file_exists($upload_dir)) {
+                    wp_mkdir_p($upload_dir);
+                }
+                
+                // Save the file
+                if (file_put_contents($file_path, $image_data)) {
+                    $preview_url = CD_UPLOADS_URL . $filename;
+                } else {
+                    error_log('Failed to save preview image: ' . $file_path);
+                }
+            }
+        }
         // Don't try to validate JSON structure - just make sure it's valid JSON
         if (empty($design_data)) {
             wp_send_json_error(array('message' => __('No design data provided', 'clothing-designer')));

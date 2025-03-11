@@ -640,12 +640,12 @@
          */
         addSVG(svgData) {     
             // Add a guard to prevent multiple calls
+            this._processingAddSVG = true;
             if (this._processingAddSVG) {
                 console.warn('Already processing SVG, skipping duplicate call');
                 return;
             }
             console.log("add svg function: ", svgData)
-            this._processingAddSVG = true;
             if (!svgData || !svgData.content) {
                 console.error('Invalid SVG data provided', svgData);
                 alert(cd_vars.messages.invalid_file || 'Invalid SVG file');
@@ -712,13 +712,15 @@
                             svgContentLength: svgData.content ? svgData.content.length : 0,
                             svgContentPreview: svgData.content ? svgData.content.substring(0, 100) + '...' : 'none'
                         });
+                        this._processingAddSVG = false;
                         alert(cd_vars.messages.error_loading_svg || 'Error loading SVG');
                     }, { crossOrigin: 'anonymous' });
                 }catch (e) {
                     console.error('Exception when processing SVG:', e);
                     alert(cd_vars.messages.svg_processing_error || 'Error processing SVG');
+                    this._processingAddSVG = false;
                 }
-            }, 100)
+            }, 1000)
         }
 
         /**
@@ -1770,7 +1772,7 @@
                     action: 'cd_save_design',
                     nonce: cd_vars.nonce,
                     template_id: this.options.templateId,
-                    design_data: JSON.stringify(metadataOnly),
+                    design_data: designDataJSON,
                     preview_image: previewImage
                 },
                 success: (response) => {
