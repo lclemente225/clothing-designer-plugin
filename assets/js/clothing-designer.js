@@ -658,11 +658,11 @@
          */
         addSVG(svgData) {     
             // Add a guard to prevent multiple calls
-            this._processingAddSVG = true;
             if (this._processingAddSVG) {
                 console.warn('Already processing SVG, skipping duplicate call');
                 return;
             }
+            this._processingAddSVG = true;
             console.log("add svg function: ", svgData)
             if (!svgData || !svgData.content) {
                 console.error('Invalid SVG data provided', svgData);
@@ -704,9 +704,20 @@
                         this.canvas.add(svgGroup);
                         this.canvas.setActiveObject(svgGroup);
                         this.canvas.renderAll();
-
+                        // Ensure elements are positioned within the canvas
+                        svgGroup.set({
+                            left: this.canvas.width / 2,
+                            top: this.canvas.height / 2,
+                            scaleX: scale,
+                            scaleY: scale,
+                            originX: 'center',
+                            originY: 'center'
+                        });
                         // Add to design layers
                         const layerId = this.generateId();
+                        if (!this.designLayers[this.currentView]) {
+                            this.designLayers[this.currentView] = [];
+                        }
                         this.designLayers[this.currentView].push({
                             id: layerId,
                             name: svgData.file_name || 'SVG Element',
@@ -722,8 +733,8 @@
                         // If the SVG has editable text, show text editing options
                         if (svgData.editable && svgData.text_elements && svgData.text_elements.length > 0) {
                             this.showEditableSVGText(layerId, svgData.text_elements);
-                            this._processingAddSVG = false;
                         }
+                        this._processingAddSVG = false;
                     }, (error) => {
                         console.error('Error loading SVG:', {
                             error: error,
@@ -1700,6 +1711,10 @@
             // Get data URL for preview
             const previewImage = tempCanvas.toDataURL('image/png');
             
+            // Create an object of preview images for all views
+            const previewImages = {};
+            previewImages[this.currentView] = previewImage;
+            
             // Prepare design data for all views
             const designData = {
                 currentView: this.currentView,
@@ -1757,29 +1772,9 @@
                 }
             });
             
-            // Debug: Log the JSON data size and Save design metadata in json
+            // Debug: Log the JSON data size
             const designDataJSON = JSON.stringify(designData);
-            console.log('Design data JSON size: ' + designDataJSON + ' bytes');
-            
-            
-       /*      // Process each view to remove large content
-            Object.keys(designData.views).forEach(viewType => {
-                if (designData.views[viewType] && designData.views[viewType].elements) {
-                    metadataOnly.views[viewType] = {
-                        elements: designData.views[viewType].elements.map(element => {
-                            // Create a metadata-only copy without large SVG content
-                            const metaElement = {...element};
-                            
-                            // Remove large fields like SVG content
-                            if (metaElement.svg_content) {
-                                delete metaElement.svg_content;
-                            }
-                            
-                            return metaElement;
-                        })
-                    };
-                }
-            }); */
+            console.log('Design data JSON size: ' + designDataJSON.length + ' bytes');
             
             // Send to server
             $.ajax({
@@ -1790,8 +1785,9 @@
                     nonce: cd_vars.nonce,
                     template_id: this.options.templateId,
                     design_data: designDataJSON,
-                    preview_image: previewImage,
-                    view_types: Object.keys(designData.views).join(',') // Send list of included views
+                    preview_image: previewImage,          // For backward compatibility
+                    preview_images: JSON.stringify(previewImages),  // For multi-view support
+                    view_types: Object.keys(designData.views).join(',')
                 },
                 success: (response) => {
                     if (response.success) {
@@ -1808,8 +1804,7 @@
                     alert(cd_vars.messages.save_error + (status ? ': ' + status + ',' + error : ''));
                 }
             });
-        }      
-        
+        }
         // Helper method to save the layers for current view
         saveCurrentViewLayers() {
             // Only save if we have a current view
