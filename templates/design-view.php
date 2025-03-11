@@ -95,7 +95,7 @@
 <body>
     <div class="design-preview">
         <div class="design-header">
-            <h1 class="design-title"><?php echo esc_html($design->template_title); ?> - <?php echo __('Dsesign Preview', 'clothing-designer'); ?></h1>
+            <h1 class="design-title"><?php echo esc_html($design->template_title); ?> - <?php echo __('Design Preview', 'clothing-designer'); ?></h1>
             <div class="design-meta">
                 <?php echo __('Template:', 'clothing-designer'); ?> <strong><?php echo esc_html($design->template_title); ?></strong>
             </div>
@@ -125,6 +125,10 @@
                 $preview_url = isset($view_data['preview_url']) ? $view_data['preview_url'] : '';
                 if (empty($preview_url) && $view_type === $current_view) {
                     $preview_url = $design->preview_url;
+                }
+                // If still empty, try using template file URL as a fallback
+                if (empty($preview_url) && isset($view_data['templateData']['file_url'])) {
+                    $preview_url = $view_data['templateData']['file_url'];
                 }
                 
                 echo '<div class="view-panel ' . $active_class . '" data-view="' . esc_attr($view_type) . '">';

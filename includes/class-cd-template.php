@@ -682,110 +682,13 @@ class CD_Template {
             wp_die(__('Template not found', 'clothing-designer'));
             return;
         }
-        
+        $design->template_title = $template->title;
         // Get user info
         $user_info = $design->user_id > 0 ? get_userdata($design->user_id) : null;
         $user_name = $user_info ? $user_info->display_name : __('Guest', 'clothing-designer');
         
         // Output design preview
-        ?>
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title><?php echo sprintf(__('Design Preview - %s', 'clothing-designer'), esc_html($template->title)); ?></title>
-            <style>
-                body {
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-                    background-color: #f0f0f0;
-                    margin: 0;
-                    padding: 20px;
-                }
-                .design-preview {
-                    max-width: 800px;
-                    margin: 0 auto;
-                    background-color: #fff;
-                    border-radius: 5px;
-                    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-                    overflow: hidden;
-                }
-                .design-header {
-                    padding: 20px;
-                    background-color: #f8f8f8;
-                    border-bottom: 1px solid #e5e5e5;
-                }
-                .design-title {
-                    margin: 0 0 10px;
-                    font-size: 24px;
-                }
-                .design-meta {
-                    color: #666;
-                    font-size: 14px;
-                }
-                .design-image {
-                    text-align: center;
-                    padding: 30px;
-                }
-                .design-image img {
-                    max-width: 100%;
-                    height: auto;
-                    display: block;
-                    margin: 0 auto;
-                    max-height: 500px;
-                }
-                .design-footer {
-                    padding: 15px 20px;
-                    border-top: 1px solid #e5e5e5;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    font-size: 14px;
-                }
-                .design-user {
-                    color: #555;
-                }
-                .design-date {
-                    color: #888;
-                }
-                .no-image {
-                    background-color: #f5f5f5;
-                    padding: 100px 30px;
-                    text-align: center;
-                    color: #888;
-                    font-size: 18px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="design-preview">
-                <div class="design-header">
-                    <h1 class="design-title"><?php echo esc_html($template->title); ?> - <?php echo __('Design Preview', 'clothing-designer'); ?></h1>
-                    <div class="design-meta">
-                        <?php echo __('Template:', 'clothing-designer'); ?> <strong><?php echo esc_html($template->title); ?></strong>
-                    </div>
-                </div>
-                
-                <div class="design-image">
-                    <?php if (!empty($design->preview_url)) : ?>
-                        <img src="<?php echo esc_url($design->preview_url); ?>" alt="<?php echo __('Design Preview', 'clothing-designer'); ?>">
-                    <?php else : ?>
-                        <div class="no-image"><?php echo __('No preview image available', 'clothing-designer'); ?></div>
-                    <?php endif; ?>
-                </div>
-                
-                <div class="design-footer">
-                    <div class="design-user">
-                        <?php echo __('Created by:', 'clothing-designer'); ?> <strong><?php echo esc_html($user_name); ?></strong>
-                    </div>
-                    <div class="design-date">
-                        <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($design->created_at))); ?>
-                    </div>
-                </div>
-            </div>
-        </body>
-        </html>
-        <?php
+        include(CD_PLUGIN_DIR . 'templates/design-view.php');
         exit;
     }
 
