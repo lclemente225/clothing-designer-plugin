@@ -786,7 +786,7 @@ class CD_Template {
         if ($result === false) {
             wp_send_json_error(array('message' => 'Database update failed', 'error' => $wpdb->last_error));
         } else {
-            wp_send_json_success(array('updated' => true, 'view' => $view_type));
+            wp_send_json_success(array('updated' => true, 'view' => $view_types));
         }
     }
     /**

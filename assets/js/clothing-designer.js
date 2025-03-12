@@ -1285,6 +1285,7 @@
                 });
                 return;
             }
+            this.saveCurrentViewLayers();
             
             this.performViewSwitch(viewType);         
         }

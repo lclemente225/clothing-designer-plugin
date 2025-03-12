@@ -218,6 +218,14 @@ class CD_Admin {
             'cd_options_page',
             'cd_api_section'
         );
+
+        add_settings_field(
+            'override_env_api_key',
+            __('Override Environment API Key', 'clothing-designer'),
+            array($this, 'render_override_env_api_key_field'),
+            'cd_options_page',
+            'cd_api_section'
+        );
     }
     
     /**
@@ -226,6 +234,9 @@ class CD_Admin {
     public function sanitize_options($input) {
         $output = array();
         
+        // Save override_env_api_key setting
+        $output['override_env_api_key'] = isset($input['override_env_api_key']) ? 'yes' : 'no';
+
         // Validate editor width
         if (isset($input['editor_width'])) {
             $width = sanitize_text_field($input['editor_width']);
@@ -1063,19 +1074,26 @@ class CD_Admin {
     public function render_cloudmersive_api_key_field() {
         $options = get_option('cd_options');
         $api_key = isset($options['cloudmersive_api_key']) ? $options['cloudmersive_api_key'] : '';
+        $override_env_api_key = isset($options['override_env_api_key']) ? $options['override_env_api_key'] : 'no';
         $env_api_key = '';
-        
+        $env_api_key_exists = false;
+
         // Check for API key in environment variables
         if (class_exists('CD_Env_Loader')) {
             $env_api_key = CD_Env_Loader::get('CLOUDMERSIVE_API_KEY');
+            $env_api_key_exists = !empty($env_api_key);
         }
         
-        if (!empty($env_api_key)) {
-            echo '<input type="text" name="cd_options[cloudmersive_api_key]" value="' . esc_attr($api_key) . '" class="regular-text" disabled />';
-            echo '<p class="description">' . __('API key is set via environment variable.', 'clothing-designer') . '</p>';
+        $disabled = ($env_api_key_exists && $override_env_api_key !== 'yes') ? 'disabled' : '';
+        echo '<input type="text" name="cd_options[cloudmersive_api_key]" value="' . esc_attr($api_key) . '" class="regular-text" ' . $disabled . ' />';
+
+        if ($env_api_key_exists) {
+            if ($override_env_api_key === 'yes') {
+                echo '<p class="description">' . __('Environment variable detected but override is enabled. Your input will be used.', 'clothing-designer') . '</p>';
+            } else {
+                echo '<p class="description">' . __('API key is set via environment variable. Enable override below to use a custom value.', 'clothing-designer') . '</p>';
+            }
         } else {
-            // Otherwise, show the normal field
-            echo '<input type="text" name="cd_options[cloudmersive_api_key]" value="' . esc_attr($api_key) . '" class="regular-text" />';
             echo '<p class="description">' . __('Enter your Cloudmersive API key for AI to SVG conversion.', 'clothing-designer');
             echo ' <a href="https://account.cloudmersive.com/signup" target="_blank">' . __('Get a Cloudmersive API key', 'clothing-designer') . '</a></p>';
         }
@@ -1094,4 +1112,30 @@ class CD_Admin {
         echo '</label>';
         echo '<p class="description">' . __('If unchecked, local conversion methods will be tried first.', 'clothing-designer') . '</p>';
     }
+    /**
+     * Add this method to CD_Admin class
+     */
+    public function render_override_env_api_key_field() {
+        $options = get_option('cd_options');
+        $override_env_api_key = isset($options['override_env_api_key']) ? $options['override_env_api_key'] : 'no';
+        $env_api_key_exists = false;
+        
+        // Check if environment variable exists
+        if (class_exists('CD_Env_Loader')) {
+            $env_api_key = CD_Env_Loader::get('CLOUDMERSIVE_API_KEY');
+            $env_api_key_exists = !empty($env_api_key);
+        }
+        
+        // Only show this option if environment variable exists
+        if ($env_api_key_exists) {
+            echo '<label>';
+            echo '<input type="checkbox" name="cd_options[override_env_api_key]" value="yes" ' . checked($override_env_api_key, 'yes', false) . ' />';
+            echo __('Allow overriding environment variable API key with value entered below', 'clothing-designer');
+            echo '</label>';
+            echo '<p class="description">' . __('When checked, the API key entered in the field above will be used instead of the environment variable.', 'clothing-designer') . '</p>';
+        } else {
+            echo '<p class="description">' . __('No environment variable detected. This option only applies when an environment variable is set.', 'clothing-designer') . '</p>';
+        }
+    }
+
 }
