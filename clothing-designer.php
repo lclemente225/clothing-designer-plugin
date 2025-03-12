@@ -71,6 +71,11 @@ class Clothing_Designer {
         require_once CD_PLUGIN_DIR . 'includes/class-cd-shortcode.php';
         require_once CD_PLUGIN_DIR . 'includes/class-cd-ajax.php';
         require_once CD_PLUGIN_DIR . 'includes/class-cd-file-handler.php';
+        // Optional environment loader for API keys
+        $env_loader_path = CD_PLUGIN_DIR . 'includes/class-cd-env-loader.php';
+        if (file_exists($env_loader_path)) {
+            require_once $env_loader_path;
+        }
     }
     
     /**
@@ -89,10 +94,12 @@ class Clothing_Designer {
     public function plugins_loaded() {
         try {
             load_plugin_textdomain('clothing-designer', false, dirname(CD_PLUGIN_BASENAME) . '/languages');
-            
+            // Initialize environment loader if available
+            if (class_exists('CD_Env_Loader')) {
+                CD_Env_Loader::get_instance();
+            }
             // Check required directories
             $this->check_required_directories();
-            
             // Initialize classes
             CD_Admin::get_instance();
             CD_Assets::get_instance();

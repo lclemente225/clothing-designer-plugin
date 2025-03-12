@@ -291,6 +291,106 @@ class CD_File_Handler {
         $result = $this->execute_command('pdf2svg', [$ai_path, $svg_path]);
         return [$result[0] && file_exists($svg_path), $result[2]];
     }
+
+    /**
+     * Convert AI to SVG using Cloudmersive API.
+     *
+     * @param string $ai_path Path to AI file.
+     * @param string $svg_path Output SVG path.
+     * @return array [success (bool), error message (string)]
+     */
+    private function convert_ai_with_cloudmersive($ai_path, $svg_path) {
+        $api_key = $this->get_cloudmersive_api_key();
+        
+        if (empty($api_key)) {
+            return array(false, 'Cloudmersive API key not configured');
+        }
+        
+        if (!file_exists($ai_path)) {
+            return array(false, 'AI file not found');
+        }
+        
+        // Prepare file for upload
+        $file_data = file_get_contents($ai_path);
+        
+        if ($file_data === false) {
+            return array(false, 'Failed to read AI file');
+        }
+        
+        // Generate random boundary for multipart data
+        $boundary = wp_generate_password(24, false);
+        
+        // Build request body
+        $data = '';
+        $data .= "--$boundary\r\n";
+        $data .= "Content-Disposition: form-data; name=\"inputFile\"; filename=\"" . basename($ai_path) . "\"\r\n";
+        $data .= "Content-Type: application/postscript\r\n\r\n";
+        $data .= $file_data . "\r\n";
+        $data .= "--$boundary--\r\n";
+        
+        // Send API request
+        $response = wp_remote_post('https://api.cloudmersive.com/convert/ai/to/svg', array(
+            'method' => 'POST',
+            'timeout' => 60,
+            'headers' => array(
+                'Content-Type' => 'multipart/form-data; boundary=' . $boundary,
+                'Apikey' => $api_key
+            ),
+            'body' => $data,
+            'sslverify' => true
+        ));
+        
+        if (is_wp_error($response)) {
+            return array(false, 'API request failed: ' . $response->get_error_message());
+        }
+        
+        $status_code = wp_remote_retrieve_response_code($response);
+        
+        if ($status_code !== 200) {
+            return array(false, 'API request failed with status code: ' . $status_code);
+        }
+        
+        $svg_content = wp_remote_retrieve_body($response);
+        
+        if (empty($svg_content)) {
+            return array(false, 'Empty response from API');
+        }
+        
+        // Validate SVG content
+        if (strpos($svg_content, '<svg') === false) {
+            return array(false, 'Invalid SVG content received from API');
+        }
+        
+        // Save SVG file
+        $result = file_put_contents($svg_path, $svg_content);
+        
+        if ($result === false) {
+            return array(false, 'Failed to save SVG file');
+        }
+        
+        return array(true, '');
+    }
+
+    /**
+     * Get Cloudmersive API key.
+     *
+     * @return string API key or empty string.
+     */
+    private function get_cloudmersive_api_key() {
+        // Check environment variable first if class exists
+        if (class_exists('CD_Env_Loader')) {
+            $env_api_key = CD_Env_Loader::get('CLOUDMERSIVE_API_KEY');
+            
+            if (!empty($env_api_key)) {
+                return $env_api_key;
+            }
+        }
+        
+        // Check options
+        $options = get_option('cd_options', array());
+        return isset($options['cloudmersive_api_key']) ? $options['cloudmersive_api_key'] : '';
+    }
+
     /**
      * Sanitize SVG content.
      *

@@ -275,7 +275,16 @@ class CD_Admin {
             $output['allowed_file_types'] = array('svg', 'png', 'jpg', 'jpeg');
             add_settings_error('cd_options', 'invalid_file_types', __('No valid file types selected. Using defaults.', 'clothing-designer'));
         }
-        
+
+        // Sanitize Cloudmersive API key
+        if (isset($input['cloudmersive_api_key'])) {
+            $output['cloudmersive_api_key'] = sanitize_text_field($input['cloudmersive_api_key']);
+        } else if (isset($input['cloudmersive_api_key'])) {
+            $output['cloudmersive_api_key'] = '';
+        }
+    
+    // Use Cloudmersive setting
+    $output['use_cloudmersive'] = isset($input['use_cloudmersive']) ? 'yes' : 'no';
         return $output;
     }
     
@@ -1038,5 +1047,48 @@ class CD_Admin {
         } else {
             wp_send_json_error(array('message' => __('Failed to delete template', 'clothing-designer')));
         }
+    }
+    
+    /**
+     * Render API section.
+     */
+    public function render_api_section() {
+        echo '<p>' . __('Configure API integrations for enhanced functionality.', 'clothing-designer') . '</p>';
+    }
+
+    /**
+     * Render Cloudmersive API key field.
+     */
+    public function render_cloudmersive_api_key_field() {
+        $options = get_option('cd_options');
+        $api_key = isset($options['cloudmersive_api_key']) ? $options['cloudmersive_api_key'] : '';
+        $env_api_key = '';
+        
+        // Check for API key in environment variables
+        if (class_exists('CD_Env_Loader')) {
+            $env_api_key = CD_Env_Loader::get('CLOUDMERSIVE_API_KEY');
+        }
+        
+        echo '<input type="text" name="cd_options[cloudmersive_api_key]" value="' . esc_attr($api_key) . '" class="regular-text" ' . ($env_api_key ? 'disabled' : '') . ' />';
+        
+        if ($env_api_key) {
+            echo '<p class="description">' . __('API key is set via environment variable.', 'clothing-designer') . '</p>';
+        } else {
+            echo '<p class="description">' . __('Enter your Cloudmersive API key for AI to SVG conversion.', 'clothing-designer') . ' <a href="https://account.cloudmersive.com/signup" target="_blank">' . __('Get a Cloudmersive API key', 'clothing-designer') . '</a></p>';
+        }
+    }
+
+    /**
+     * Render use Cloudmersive field.
+     */
+    public function render_use_cloudmersive_field() {
+        $options = get_option('cd_options');
+        $use_cloudmersive = isset($options['use_cloudmersive']) ? $options['use_cloudmersive'] : 'yes';
+        
+        echo '<label>';
+        echo '<input type="checkbox" name="cd_options[use_cloudmersive]" value="yes" ' . checked($use_cloudmersive, 'yes', false) . ' />';
+        echo __('Prioritize Cloudmersive API for AI to SVG conversion (recommended)', 'clothing-designer');
+        echo '</label>';
+        echo '<p class="description">' . __('If unchecked, local conversion methods will be tried first.', 'clothing-designer') . '</p>';
     }
 }
