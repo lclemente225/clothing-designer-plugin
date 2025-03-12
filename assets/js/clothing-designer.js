@@ -59,6 +59,7 @@
             this.isLoading = false;
             this.svgTexts = [];
             this.designLayers = {};
+            this._processingAddSVG = false;
 
             // Initialize designLayers for each view
             ['front', 'back', 'left', 'right'].forEach(view => {
@@ -232,9 +233,10 @@
 
                     if (response.success) {
                         const uploadedFile = response.data;
-
+                        console.log("check uploaded file", uploadedFile)
                         // Handle different file types
                         if (uploadedFile.file_type === 'svg') {
+                            console.log("you got svg", uploadedFile)
                             this.addSVG(uploadedFile);
                         } else if (['png', 'jpg', 'jpeg'].includes(uploadedFile.file_type)) {
                             this.addImage(uploadedFile.file_url);
@@ -658,15 +660,18 @@
          */
         addSVG(svgData) {     
             // Add a guard to prevent multiple calls
-            console.log("add svg function: ", svgData)
-            this._processingAddSVG = false;
             if (this._processingAddSVG) {
-                console.log('Already processing SVG, skipping duplicate call');
+                console.warn('Already processing SVG, skipping duplicate call');
                 return;
             }
+            this._processingAddSVG = true;
+            
+            console.log("add svg function: ", svgData, this.designLayers[this.currentView]);
+            
             if (!svgData || !svgData.content) {
                 console.error('Invalid SVG data provided', svgData);
                 alert(cd_vars.messages.invalid_file || 'Invalid SVG file');
+                this._processingAddSVG = false;
                 return;
             }   
             
@@ -674,50 +679,47 @@
             if (!svgData.content.includes('<svg') || !svgData.content.includes('</svg>')) {
                 console.error('Invalid SVG structure, missing required tags');
                 alert('The file does not appear to be a valid SVG');
-                this._processingAddSVtrue;
+                this._processingAddSVG = false;
                 return;
             }
+            
             setTimeout(() => {
-                try{
+                try {
                     fabric.loadSVGFromString(svgData.content, (objects, options) => {
-                    if (!objects || objects.length === 0) {
-                        console.error('No SVG objects loaded');
-                        alert(cd_vars.messages.invalid_svg || 'Invalid SVG content');
-                        this._processingAddSVG = true;
-                        return;
-                    }
-
-                    const svgGroup = new fabric.Group(objects, {
-                        left: this.canvas.width / 2,
-                        top: this.canvas.height / 2,
-                        name: 'svg-element',
-                        originX: 'center',
-                        originY: 'center'
-                    });
-
+                        console.log("fabric creation load svg from string");
+                        
+                        if (!objects || objects.length === 0) {
+                            console.error('No SVG objects loaded');
+                            alert(cd_vars.messages.invalid_svg || 'Invalid SVG content');
+                            this._processingAddSVG = false;
+                            return;
+                        }
+        
+                        // Create the SVG group object
+                        const svgGroup = new fabric.Group(objects, {
+                            left: this.canvas.width / 2,
+                            top: this.canvas.height / 2,
+                            name: 'svg-element',
+                            originX: 'center',
+                            originY: 'center'
+                        });
+                        
                         // Scale to reasonable size
                         const maxDimension = Math.min(this.canvas.width, this.canvas.height) * 0.5;
                         const scale = maxDimension / Math.max(svgGroup.width, svgGroup.height);
                         svgGroup.scale(scale);
-
+                        
                         // Add to canvas
                         this.canvas.add(svgGroup);
                         this.canvas.setActiveObject(svgGroup);
                         this.canvas.renderAll();
-                        // Ensure elements are positioned within the canvas
-                        svgGroup.set({
-                            left: this.canvas.width / 2,
-                            top: this.canvas.height / 2,
-                            scaleX: scale,
-                            scaleY: scale,
-                            originX: 'center',
-                            originY: 'center'
-                        });
+                        
                         // Add to design layers
                         const layerId = this.generateId();
                         if (!this.designLayers[this.currentView]) {
                             this.designLayers[this.currentView] = [];
                         }
+                        
                         this.designLayers[this.currentView].push({
                             id: layerId,
                             name: svgData.file_name || 'SVG Element',
@@ -728,30 +730,25 @@
                             text_elements: svgData.text_elements || [],
                             editable: svgData.editable || false
                         });
-
+                        
+                        console.log("check design layers", this.designLayers);
                         this.updateLayersPanel();
+                        
                         // If the SVG has editable text, show text editing options
                         if (svgData.editable && svgData.text_elements && svgData.text_elements.length > 0) {
                             this.showEditableSVGText(layerId, svgData.text_elements);
                         }
-                        this._processingAddSVG = true;
-                    }, (error) => {
-                        console.error('Error loading SVG:', {
-                            error: error,
-                            svgContentLength: svgData.content ? svgData.content.length : 0,
-                            svgContentPreview: svgData.content ? svgData.content.substring(0, 100) + '...' : 'none'
-                        });
-                        this._processingAddSVG = true;
-                        alert(cd_vars.messages.error_loading_svg || 'Error loading SVG');
-                    }, { crossOrigin: 'anonymous' });
-                }catch (e) {
+                        
+                        this._processingAddSVG = false;
+                        console.log("end of svg to string");
+                    }, null, { crossOrigin: 'anonymous' });
+                } catch (e) {
                     console.error('Exception when processing SVG:', e);
                     alert(cd_vars.messages.svg_processing_error || 'Error processing SVG');
-                    this._processingAddSVG = true;
+                    this._processingAddSVG = false;
                 }
-            }, 1000)
+            }, 1000);
         }
-
         /**
          * Show editable text elements for an uploaded SVG
          * 
