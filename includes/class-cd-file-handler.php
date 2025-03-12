@@ -796,7 +796,7 @@ class CD_File_Handler {
                     
                     if (count($style_kv) === 2) {
                         $key = trim($style_kv[0]);
-                        $value = trim($style_kv[1]);
+                        $value = trim($style_kv[1]); 
                         $style[$key] = $value;
                         
                         // Check for specific style properties

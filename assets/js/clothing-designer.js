@@ -65,7 +65,6 @@
             ['front', 'back', 'left', 'right'].forEach(view => {
                 this.designLayers[view] = [];
             });
-            console.log("Initial designLayers:", this.designLayers);
             // Initialize
             this.init();
         }
@@ -233,10 +232,8 @@
 
                     if (response.success) {
                         const uploadedFile = response.data;
-                        console.log("check uploaded file", uploadedFile)
                         // Handle different file types
                         if (uploadedFile.file_type === 'svg') {
-                            console.log("you got svg", uploadedFile)
                             this.addSVG(uploadedFile);
                         } else if (['png', 'jpg', 'jpeg'].includes(uploadedFile.file_type)) {
                             this.addImage(uploadedFile.file_url);
@@ -474,7 +471,6 @@
                     if (response.success) {
                         this.design = response.data.design; 
                         const designData = JSON.parse(this.design.design_data);
-                        console.log("Loaded design with views:", designData.views ? Object.keys(designData.views) : "none");
                         
                         // Enable view buttons for available views
                         if (designData.views) {
@@ -666,8 +662,6 @@
             }
             this._processingAddSVG = true;
             
-            console.log("add svg function: ", svgData, this.designLayers[this.currentView]);
-            
             if (!svgData || !svgData.content) {
                 console.error('Invalid SVG data provided', svgData);
                 alert(cd_vars.messages.invalid_file || 'Invalid SVG file');
@@ -685,9 +679,7 @@
             
             setTimeout(() => {
                 try {
-                    fabric.loadSVGFromString(svgData.content, (objects, options) => {
-                        console.log("fabric creation load svg from string");
-                        
+                    fabric.loadSVGFromString(svgData.content, (objects, options) => {                        
                         if (!objects || objects.length === 0) {
                             console.error('No SVG objects loaded');
                             alert(cd_vars.messages.invalid_svg || 'Invalid SVG content');
@@ -730,8 +722,6 @@
                             text_elements: svgData.text_elements || [],
                             editable: svgData.editable || false
                         });
-                        
-                        console.log("check design layers", this.designLayers);
                         this.updateLayersPanel();
                         
                         // If the SVG has editable text, show text editing options
@@ -740,7 +730,6 @@
                         }
                         
                         this._processingAddSVG = false;
-                        console.log("end of svg to string");
                     }, null, { crossOrigin: 'anonymous' });
                 } catch (e) {
                     console.error('Exception when processing SVG:', e);
@@ -1329,7 +1318,6 @@
                 
                 // Load template view
                 const templateObj = this.templateViews[viewType];
-                console.log("loading template view - clothing-designer.js 1282", viewType, JSON.stringify(this.templateViews))
                 if (!templateObj.content && templateObj.file_url) {
                     // Need to fetch the SVG content
                     fetch(templateObj.file_url)
@@ -1406,7 +1394,7 @@
                     lockSkewingY: true,
                     name: 'template'
                 });
-                console.log("check render template view", objects, viewBox);
+                
                 // Set dimensions and position
                 const viewBoxWidth = viewBox[2] - viewBox[0];
                 const viewBoxHeight = viewBox[3] - viewBox[1];
@@ -1484,7 +1472,6 @@
         // Load saved layers for a view
         loadViewLayers(viewType) {
             const layers = this.designLayers[viewType] || [];
-            console.log("load view layers check: ", layers)
             layers.forEach(layer => {
                 // Add layer object to canvas
                 this.canvas.add(layer.object);
@@ -1496,8 +1483,6 @@
 
         // Update AJAX methods for template loading
         loadTemplateViews() {
-            console.log('Loading template views for template ID:', this.options.templateId);
-
             if (!this.options.templateId) {
                 this.showError(cd_vars.messages.no_template);
                 return;
@@ -1514,11 +1499,9 @@
                     template_id: this.options.templateId
                 },
                 success: (response) => {
-                    console.log("load template views response", response)
                     if (response.success) {
                         this.template = response.data.template;
                         this.templateViews = response.data.views;
-                        console.log('Views available:', Object.keys(this.templateViews), this.template);
                         // Enable only the view buttons for which we have data
                         Object.keys(this.templateViews).forEach(viewType => {
                             this.container.find(`.cd-view-btn[data-view="${viewType}"]`).prop('disabled', false);
@@ -1684,7 +1667,6 @@
 
         saveDesign() {
             this.showLoading();
-            console.log("activate save design")
             // Save current view first
             this.saveCurrentViewLayers();
             
@@ -1720,7 +1702,6 @@
                 if (this.templateViews[viewType]) {
                     designData.views[viewType] = {
                         elements: this.designLayers[viewType].map(layer => {
-                            console.log("save design check layers: ", layer)
                             const baseData = {
                                 id: layer.id,
                                 name: layer.name,
@@ -1768,7 +1749,6 @@
             
             // Debug: Log the JSON data size
             const designDataJSON = JSON.stringify(designData);
-            console.log('Design data JSON size: ' + designDataJSON.length + ' bytes');
             
             // Send to server
             $.ajax({
@@ -1813,7 +1793,6 @@
                 
                 // Update the positions and properties of existing layers
                 this.designLayers[this.currentView].forEach(layer => {
-                    console.log("check save current view layers :", layer)
                     if (layer.object) {
                         // Update properties from the object on canvas
                         const obj = objects.find(o => o === layer.object);
