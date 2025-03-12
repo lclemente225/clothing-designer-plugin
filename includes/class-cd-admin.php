@@ -283,8 +283,8 @@ class CD_Admin {
             $output['cloudmersive_api_key'] = '';
         }
     
-    // Use Cloudmersive setting
-    $output['use_cloudmersive'] = isset($input['use_cloudmersive']) ? 'yes' : 'no';
+        // Use Cloudmersive setting
+        $output['use_cloudmersive'] = isset($input['use_cloudmersive']) ? 'yes' : 'no';
         return $output;
     }
     
@@ -1048,13 +1048,14 @@ class CD_Admin {
             wp_send_json_error(array('message' => __('Failed to delete template', 'clothing-designer')));
         }
     }
-    
+
     /**
      * Render API section.
      */
     public function render_api_section() {
         echo '<p>' . __('Configure API integrations for enhanced functionality.', 'clothing-designer') . '</p>';
     }
+    
 
     /**
      * Render Cloudmersive API key field.
@@ -1069,12 +1070,14 @@ class CD_Admin {
             $env_api_key = CD_Env_Loader::get('CLOUDMERSIVE_API_KEY');
         }
         
-        echo '<input type="text" name="cd_options[cloudmersive_api_key]" value="' . esc_attr($api_key) . '" class="regular-text" ' . ($env_api_key ? 'disabled' : '') . ' />';
-        
-        if ($env_api_key) {
+        if (!empty($env_api_key)) {
+            echo '<input type="text" name="cd_options[cloudmersive_api_key]" value="' . esc_attr($api_key) . '" class="regular-text" disabled />';
             echo '<p class="description">' . __('API key is set via environment variable.', 'clothing-designer') . '</p>';
         } else {
-            echo '<p class="description">' . __('Enter your Cloudmersive API key for AI to SVG conversion.', 'clothing-designer') . ' <a href="https://account.cloudmersive.com/signup" target="_blank">' . __('Get a Cloudmersive API key', 'clothing-designer') . '</a></p>';
+            // Otherwise, show the normal field
+            echo '<input type="text" name="cd_options[cloudmersive_api_key]" value="' . esc_attr($api_key) . '" class="regular-text" />';
+            echo '<p class="description">' . __('Enter your Cloudmersive API key for AI to SVG conversion.', 'clothing-designer');
+            echo ' <a href="https://account.cloudmersive.com/signup" target="_blank">' . __('Get a Cloudmersive API key', 'clothing-designer') . '</a></p>';
         }
     }
 

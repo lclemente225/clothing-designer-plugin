@@ -154,6 +154,10 @@ class CD_File_Handler {
         $error_message = '';
         
         switch ($conversion_method) {
+            case 'cloudmersive':
+                list($conversion_success, $error_message) = $this->convert_ai_with_cloudmersive($ai_path, $svg_path);
+                break;
+
             case 'inkscape':
                 list($conversion_success, $error_message) = $this->convert_ai_with_inkscape($ai_path, $svg_path);
                 break;
@@ -211,6 +215,18 @@ class CD_File_Handler {
      * @return string Method name or 'none'.
      */
     private function get_ai_conversion_method() {
+        // Check if Cloudmersive should be used first
+        $options = get_option('cd_options', array());
+        $use_cloudmersive = isset($options['use_cloudmersive']) ? $options['use_cloudmersive'] : 'yes';
+        
+        if ($use_cloudmersive === 'yes') {
+            $api_key = $this->get_cloudmersive_api_key();
+            
+            if (!empty($api_key)) {
+                return 'cloudmersive';
+            }
+        }
+    
         // Check for Inkscape
         if ($this->is_program_available('inkscape')) {
             return 'inkscape';
@@ -230,6 +246,14 @@ class CD_File_Handler {
             return 'pdf2svg';
         }
         
+        // If Cloudmersive wasn't prioritized, try it as a last resort
+        if ($use_cloudmersive !== 'yes') {
+            $api_key = $this->get_cloudmersive_api_key();
+            
+            if (!empty($api_key)) {
+                return 'cloudmersive';
+            }
+        }
         return 'none';
     }
     
