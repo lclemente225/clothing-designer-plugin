@@ -193,6 +193,30 @@ class CD_Admin {
             array($this, 'render_allowed_file_types_field'),
             'cd_options_page',
             'cd_general_section'
+        ); 
+        
+        // Add Cloudmersive API settings section
+        add_settings_section(
+            'cd_api_section',
+            __('API Integrations', 'clothing-designer'),
+            array($this, 'render_api_section'),
+            'cd_options_page'
+        );
+        
+        add_settings_field(
+            'cloudmersive_api_key',
+            __('Cloudmersive API Key', 'clothing-designer'),
+            array($this, 'render_cloudmersive_api_key_field'),
+            'cd_options_page',
+            'cd_api_section'
+        );
+        
+        add_settings_field(
+            'use_cloudmersive',
+            __('Use Cloudmersive for AI Conversion', 'clothing-designer'),
+            array($this, 'render_use_cloudmersive_field'),
+            'cd_options_page',
+            'cd_api_section'
         );
     }
     
@@ -420,28 +444,9 @@ class CD_Admin {
                     <textarea id="template-description" name="description" rows="4"><?php echo $template ? esc_textarea($template->description) : ''; ?></textarea>
                 </div>
                 
-              <!--   <div class="cd-form-field">
-                    <label for="template-file">
-                        <?php /* echo __('Template File (SVG, AI)', 'clothing-designer'); */ ?>
-                    </label>
-                    <div class="cd-file-upload-container">
-                        <input type="text" id="template-file" name="file_url" value="<?php echo $template ? esc_attr($template->file_url) : ''; ?>" readonly required>
-                        <button type="button" class="button cd-upload-file"><?php echo __('Upload', 'clothing-designer'); ?></button>
-                    </div>
-                    <p class="description">
-                        <?php /* echo __('Upload an SVG or Adobe Illustrator file for the template.', 'clothing-designer'); */ ?>
-                    </p>
-                </div> -->
-
                 <div class="cd-form-field">
                     <label><?php echo __('Template Views', 'clothing-designer'); ?></label>
                     <div class="cd-template-views">
-                       <!--  <div class="cd-view-tabs">
-                            <button type="button" class="cd-view-tab active" data-view="front"><?php /* echo __('Front', 'clothing-designer'); */ ?></button>
-                            <button type="button" class="cd-view-tab" data-view="back"><?php /* echo __('Back', 'clothing-designer'); */ ?></button>
-                            <button type="button" class="cd-view-tab" data-view="left"><?php /* echo __('Left', 'clothing-designer'); */ ?></button>
-                            <button type="button" class="cd-view-tab" data-view="right"><?php /* echo __('Right', 'clothing-designer'); */ ?></button>
-                        </div> -->
                         
                         <div class="cd-view-content">
                             <?php
