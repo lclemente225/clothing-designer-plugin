@@ -658,12 +658,12 @@
          */
         addSVG(svgData) {     
             // Add a guard to prevent multiple calls
+            console.log("add svg function: ", svgData)
+            this._processingAddSVG = false;
             if (this._processingAddSVG) {
-                console.warn('Already processing SVG, skipping duplicate call');
+                console.log('Already processing SVG, skipping duplicate call');
                 return;
             }
-            this._processingAddSVG = true;
-            console.log("add svg function: ", svgData)
             if (!svgData || !svgData.content) {
                 console.error('Invalid SVG data provided', svgData);
                 alert(cd_vars.messages.invalid_file || 'Invalid SVG file');
@@ -674,7 +674,7 @@
             if (!svgData.content.includes('<svg') || !svgData.content.includes('</svg>')) {
                 console.error('Invalid SVG structure, missing required tags');
                 alert('The file does not appear to be a valid SVG');
-                this._processingAddSVG = false;
+                this._processingAddSVtrue;
                 return;
             }
             setTimeout(() => {
@@ -683,7 +683,7 @@
                     if (!objects || objects.length === 0) {
                         console.error('No SVG objects loaded');
                         alert(cd_vars.messages.invalid_svg || 'Invalid SVG content');
-                        this._processingAddSVG = false;
+                        this._processingAddSVG = true;
                         return;
                     }
 
@@ -734,20 +734,20 @@
                         if (svgData.editable && svgData.text_elements && svgData.text_elements.length > 0) {
                             this.showEditableSVGText(layerId, svgData.text_elements);
                         }
-                        this._processingAddSVG = false;
+                        this._processingAddSVG = true;
                     }, (error) => {
                         console.error('Error loading SVG:', {
                             error: error,
                             svgContentLength: svgData.content ? svgData.content.length : 0,
                             svgContentPreview: svgData.content ? svgData.content.substring(0, 100) + '...' : 'none'
                         });
-                        this._processingAddSVG = false;
+                        this._processingAddSVG = true;
                         alert(cd_vars.messages.error_loading_svg || 'Error loading SVG');
                     }, { crossOrigin: 'anonymous' });
                 }catch (e) {
                     console.error('Exception when processing SVG:', e);
                     alert(cd_vars.messages.svg_processing_error || 'Error processing SVG');
-                    this._processingAddSVG = false;
+                    this._processingAddSVG = true;
                 }
             }, 1000)
         }
@@ -1345,7 +1345,6 @@
                         .then(content => {
                             // Save the content for future use
                             templateObj.content = content;
-                            console.log("template.content", templateObj.content, viewBox)
                             fabric.loadSVGFromString(templateObj.content, (objects, options) => {
                                 // Extract SVG dimensions from viewBox
                                 viewBox = [0, 0, 300, 150];
@@ -1353,7 +1352,6 @@
                                 if (viewBoxMatch && viewBoxMatch[1]) {
                                     viewBox = viewBoxMatch[1].split(/[\s,]+/).map(Number);
                                 }
-                                console.log("template.content", templateObj.content, viewBoxMatch)
                                 this.renderTemplateView(objects, templateObj, viewBox);
                             });
                         })
@@ -1371,7 +1369,6 @@
                             if (viewBoxMatch && viewBoxMatch[1]) {
                                 viewBox = viewBoxMatch[1].split(/[\s,]+/).map(Number);
                             }
-                            console.log("template.content", templateObj.content, viewBox)
                             this.renderTemplateView(objects, templateObj, viewBox);
                         });
                     } else if (['png', 'jpg', 'jpeg'].includes(templateObj.file_type)) {

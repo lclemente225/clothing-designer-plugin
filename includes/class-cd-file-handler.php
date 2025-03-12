@@ -304,6 +304,7 @@ class CD_File_Handler {
             error_log('Clothing Designer: Empty SVG content provided for sanitization');
             return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"></svg>';
         }
+        $svg_content = preg_replace('/(<svg[^>]*)(\s+\w+)=(\w+)(\s|>)/i', '$1$2="$3"$4', $svg_content);
 
         // Check for potentially malicious strings before parsing
         $suspicious_patterns = [
@@ -342,10 +343,7 @@ class CD_File_Handler {
         $dom = new DOMDocument();
         
         // Disable entity loading to prevent XXE attacks
-        $old_value = false;
-        if (function_exists('libxml_disable_entity_loader')) {
-            $old_value = libxml_disable_entity_loader(true);
-        }
+        $options = LIBXML_NONET; 
 
         // Suppress warnings from malformed SVG
         $use_errors = libxml_use_internal_errors(true);
@@ -356,7 +354,7 @@ class CD_File_Handler {
         // Try loading as XML first
         $success = false;
         try {
-            $success = $dom->loadXML($svg_content);
+            $success = $dom->loadXML($svg_content, $options);
         } catch (Exception $e) {
             error_log('Clothing Designer: Exception when loading SVG: ' . $e->getMessage());
         }
@@ -369,10 +367,6 @@ class CD_File_Handler {
         libxml_use_internal_errors($use_errors);
         
         // Restore previous entity loader setting
-        if (function_exists('libxml_disable_entity_loader')) {
-            libxml_disable_entity_loader($old_value);
-        }
-    
         // If loading failed, try as HTML
         if (!$success) {
             error_log('Clothing Designer: Failed to load SVG as XML. Trying as HTML');
@@ -385,7 +379,7 @@ class CD_File_Handler {
             // Attempt to load as HTML (some SVGs might be invalid XML but valid HTML)
             $dom = new DOMDocument();
             try {
-                $success = $dom->loadHTML('<div>' . $svg_content . '</div>');
+                $success = $dom->loadHTML('<div>' . $svg_content . '</div>', $options);
             } catch (Exception $e) {
                 error_log('Clothing Designer: Exception when loading SVG as HTML: ' . $e->getMessage());
             }
@@ -577,7 +571,7 @@ class CD_File_Handler {
                 }
             }
         }
-        
+
         // Log statistics if anything was removed
         if ($removed_elements > 0 || $removed_attributes > 0) {
             error_log("Clothing Designer: Sanitized SVG - removed $removed_elements elements and $removed_attributes attributes");
