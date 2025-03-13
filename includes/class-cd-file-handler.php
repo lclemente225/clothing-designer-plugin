@@ -410,7 +410,7 @@ class CD_File_Handler {
         if ($override_env_api_key === 'yes' && !empty($admin_api_key)) {
             return $admin_api_key;
         }
-
+        
         // Check environment variable first if class exists
         if (class_exists('CD_Env_Loader')) {
             $env_api_key = CD_Env_Loader::get('CLOUDMERSIVE_API_KEY');
@@ -420,6 +420,8 @@ class CD_File_Handler {
             }
         }
         
+        // Check options
+        $options = get_option('cd_options', array());
         return isset($options['cloudmersive_api_key']) ? $options['cloudmersive_api_key'] : '';
     }
 

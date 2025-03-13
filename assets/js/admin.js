@@ -428,8 +428,111 @@
 
             fileFrame.open();
         });
+        //direct file upload functionality
+        initDirectFileUpload();
     }
-
+    
+    function initDirectFileUpload() {
+        // Direct upload button click
+        $('.cd-upload-view-direct').on('click', function() {
+            const viewType = $(this).data('view');
+            // Find the file input in the same container
+            $(this).closest('.cd-file-upload-container').find('.cd-view-file-input').click();
+        });
+        
+        // File input change handler
+        $('.cd-view-file-input').on('change', function(e) {
+            if (!e.target.files || !e.target.files[0]) return;
+            
+            const viewType = $(this).data('view');
+            const container = $(this).closest('.cd-file-upload-container');
+            const file = e.target.files[0];
+            
+            // Check file type
+            const fileExt = file.name.split('.').pop().toLowerCase();
+            const allowedTypes = ['svg', 'png', 'jpg', 'jpeg', 'ai'];
+            
+            if (!allowedTypes.includes(fileExt)) {
+                alert('Invalid file type. Allowed file types: ' + allowedTypes.join(', '));
+                $(this).val(''); // Clear the input
+                return;
+            }
+            
+            // Show progress bar
+            const progressContainer = container.find('.cd-upload-progress');
+            const progressBar = progressContainer.find('.cd-upload-progress-bar');
+            progressContainer.show();
+            progressBar.width('0%');
+            
+            // Disable buttons during upload
+            container.find('button').prop('disabled', true);
+            
+            // Create FormData for the file
+            const formData = new FormData();
+            formData.append('action', 'cd_upload_file');
+            formData.append('nonce', cd_admin_vars.nonce);
+            formData.append('file', file);
+            
+            // Send upload request
+            $.ajax({
+                url: cd_admin_vars.ajax_url,
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                xhr: function() {
+                    const xhr = new window.XMLHttpRequest();
+                    xhr.upload.addEventListener('progress', function(evt) {
+                        if (evt.lengthComputable) {
+                            const percentComplete = (evt.loaded / evt.total) * 100;
+                            progressBar.width(percentComplete + '%');
+                        }
+                    }, false);
+                    return xhr;
+                },
+                success: function(response) {
+                    // Re-enable buttons
+                    container.find('button').prop('disabled', false);
+                    
+                    if (response.success) {
+                        // Update the file URL input
+                        container.find('input[type="text"]').val(response.data.file_url);
+                        
+                        // Add or update preview image
+                        let previewContainer = container.find('.cd-view-preview');
+                        if (previewContainer.length === 0) {
+                            previewContainer = $('<div class="cd-view-preview"></div>');
+                            container.append(previewContainer);
+                        }
+                        
+                        previewContainer.html(`<img src="${response.data.file_url}" alt="${viewType} view">`);
+                    } else {
+                        alert(response.data.message || 'Error uploading file');
+                    }
+                    
+                    // Reset the file input
+                    $(this).val('');
+                    
+                    // Hide progress bar
+                    setTimeout(function() {
+                        progressContainer.hide();
+                        progressBar.width('0%');
+                    }, 1000);
+                },
+                error: function() {
+                    container.find('button').prop('disabled', false);
+                    alert('Server error occurred during upload.');
+                    
+                    // Hide progress bar
+                    progressContainer.hide();
+                    progressBar.width('0%');
+                    
+                    // Reset file input
+                    $(this).val('');
+                }
+            });
+        });
+    }
     // Insert designer shortcode to editor
     function insertDesignerShortcode(templateId) {
         var shortcode = '[clothing_designer template_id="' + templateId + '"]';

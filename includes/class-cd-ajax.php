@@ -401,7 +401,7 @@ class CD_Ajax {
         $template_id = isset($_POST['template_id']) ? intval($_POST['template_id']) : 0;
         $design_data = isset($_POST['design_data']) ? $_POST['design_data'] : '';
         $preview_images = isset($_POST['preview_images']) ? $_POST['preview_images'] : '';
-        $view_types = isset($_POST['view_types']) ? sanitize_text_field($_POST['view_types']) : '';
+        $view_type = isset($_POST['view_type']) ? sanitize_text_field($_POST['view_type']) : '';
 
         // Validate data
         if (empty($template_id) || empty($design_data)) {
@@ -515,7 +515,7 @@ class CD_Ajax {
             'message' => __('Design saved successfully', 'clothing-designer'),
             'design_id' => $design_id,
             'preview_urls' => $preview_urls,
-            'views' => explode(',', $view_types),
+            'views' => explode(',', $view_type),
         ));
     }
 

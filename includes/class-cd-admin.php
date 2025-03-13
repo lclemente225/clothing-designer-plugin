@@ -290,7 +290,7 @@ class CD_Admin {
         // Sanitize Cloudmersive API key
         if (isset($input['cloudmersive_api_key'])) {
             $output['cloudmersive_api_key'] = sanitize_text_field($input['cloudmersive_api_key']);
-        } else if (isset($input['cloudmersive_api_key'])) {
+        } else {
             $output['cloudmersive_api_key'] = '';
         }
     
@@ -486,12 +486,51 @@ class CD_Admin {
                                     <input type="text" 
                                         name="template_views[<?php echo $view_type; ?>][file_url]" 
                                         value="<?php echo esc_attr($view_file_url); ?>" readonly 
-                                    <?php echo $view_type === 'front' ? 'required' : ''; ?>>
-                                    <button type="button" 
-                                        class="button cd-upload-view" 
-                                        data-view="<?php echo $view_type; ?>">
-                                        <?php echo __('Upload', 'clothing-designer'); ?>
-                                    </button>
+                                        <?php echo $view_type === 'front' ? 'required' : ''; ?>>
+                                    
+                                    <div class="cd-upload-buttons">
+                                        <!-- Direct upload button -->
+                                        <button type="button" 
+                                            class="button button-primary cd-upload-view-direct" 
+                                            data-view="<?php echo $view_type; ?>">
+                                            <?php echo __('Direct Upload', 'clothing-designer'); ?>
+                                        </button>
+                                        
+                                        <!-- Media Library button -->
+                                        <button type="button" 
+                                            class="button cd-upload-view" 
+                                            data-view="<?php echo $view_type; ?>">
+                                            <?php echo __('Media Library', 'clothing-designer'); ?>
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Hidden file input for direct upload -->
+                                    <input type="file" 
+                                        class="cd-view-file-input" 
+                                        data-view="<?php echo $view_type; ?>"
+                                        style="display: none;"
+                                        accept=".svg,.png,.jpg,.jpeg,.ai">
+                                    
+                                    <!-- Progress indicator -->
+                                    <div class="cd-upload-progress" style="display: none;">
+                                        <div class="cd-upload-progress-bar"></div>
+                                    </div>
+                                    
+                                    <p class="description">
+                                        <?php echo $view_type === 'front' 
+                                            ? __('Front view (required)', 'clothing-designer') 
+                                            : sprintf(__('%s view (optional)', 'clothing-designer'), ucfirst($view_type)); 
+                                        ?>
+                                    </p>
+                                    
+                                    <?php if (!empty($view_file_url)) : ?>
+                                    <div class="cd-view-preview">
+                                        <img 
+                                            src="<?php echo esc_url__($view_file_url); ?>" 
+                                            alt="<?php echo sprintf(__('%s view', 'clothing-designer'), ucfirst($view_type)); ?>"
+                                        >
+                                    </div>
+                                    <?php endif; ?>
                                 </div>
                                 <p class="description">
                                     <?php echo $view_type === 'front' 
@@ -502,7 +541,7 @@ class CD_Admin {
                                 <?php if (!empty($view_file_url)) : ?>
                                 <div class="cd-view-preview">
                                     <img 
-                                        src="<?php echo esc_url($view_file_url); ?>" 
+                                        src="<?php echo esc_url__($view_file_url); ?>" 
                                         alt="<?php echo sprintf(__('%s view', 'clothing-designer'), ucfirst($view_type)); ?>"
                                     >
                                 </div>

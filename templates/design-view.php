@@ -106,7 +106,7 @@
         $design_data = json_decode($design->design_data, true);
         $current_view = isset($design_data['currentView']) ? $design_data['currentView'] : 'front';
         $views = isset($design_data['views']) ? $design_data['views'] : array();
-        
+        error_log('check variables in design-view.php' . $design_data . $current_view . $views);
         // If views exist, show view tabs and panels
         if (!empty($views)) {
             echo '<div class="design-views">';
@@ -146,9 +146,9 @@
             // Fallback to single preview
             echo '<div class="design-images">';
             if (!empty($design->preview_url)) {
-                echo '<img src="' . esc_url($design->preview_url) . '" alt="' . __('Design Preview', 'clothing-designer') . '" class="design-image">';
+                echo '<img src="' . esc_url($design->preview_url) . '" alt="' . esc_html__('Design Preview', 'clothing-designer') . '" class="design-image">';
             } else {
-                echo '<div class="no-preview">' . __('No preview image available', 'clothing-designer') . '</div>';
+                echo '<div class="no-preview">' . esc_html__('No preview image available', 'clothing-designer') . '</div>';
             }
             echo '</div>';
         }
@@ -158,10 +158,10 @@
             <div class="design-user">
                 <?php 
                 $user_name = $design->user_id > 0 ? get_userdata($design->user_id)->display_name : __('Guest', 'clothing-designer');
-                echo __('Created by:', 'clothing-designer'); ?> <strong><?php echo esc_html($user_name); ?></strong>
+                echo esc_html__('Created by:', 'clothing-designer'); ?> <strong><?php echo esc_html($user_name); ?></strong>
             </div>
             <div class="design-date">
-                <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($design->created_at))); ?>
+                <?php echo esc_html__(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($design->created_at))); ?>
             </div>
         </div>
     </div>

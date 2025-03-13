@@ -59,7 +59,8 @@
             this.isLoading = false;
             this.svgTexts = [];
             this.designLayers = {};
-            this._processingAddSVG = false;
+            this._processingAddSVG = false; 
+            this.pendingViewRequest = null;
 
             // Initialize designLayers for each view
             ['front', 'back', 'left', 'right'].forEach(view => {
@@ -238,13 +239,16 @@
                         } else if (['png', 'jpg', 'jpeg'].includes(uploadedFile.file_type)) {
                             this.addImage(uploadedFile.file_url);
                         } else if (uploadedFile.file_type === 'ai') {
+                            console.log(uploadedFile)
                             // Show message about AI files
                             if (uploadedFile.message) {
+                                console.log("message")
                                 alert(uploadedFile.message);
                             }
 
                             // If converted successfully, add as SVG
                             if (uploadedFile.converted_from === 'ai') {
+                                console.log("success covcert ai to svg")
                                 this.addSVG(uploadedFile);
                             }
                         }
@@ -655,6 +659,7 @@
          * @param {Object} svgData SVG data
          */
         addSVG(svgData) {     
+            console.log("addscvg treigger: ", svgData)
             // Add a guard to prevent multiple calls
             if (this._processingAddSVG) {
                 console.warn('Already processing SVG, skipping duplicate call');
@@ -677,66 +682,72 @@
                 return;
             }
             
-            setTimeout(() => {
-                try {
-                    fabric.loadSVGFromString(svgData.content, (objects, options) => {                        
-                        if (!objects || objects.length === 0) {
-                            console.error('No SVG objects loaded');
-                            alert(cd_vars.messages.invalid_svg || 'Invalid SVG content');
-                            this._processingAddSVG = false;
-                            return;
-                        }
-        
-                        // Create the SVG group object
-                        const svgGroup = new fabric.Group(objects, {
-                            left: this.canvas.width / 2,
-                            top: this.canvas.height / 2,
-                            name: 'svg-element',
-                            originX: 'center',
-                            originY: 'center'
-                        });
-                        
-                        // Scale to reasonable size
-                        const maxDimension = Math.min(this.canvas.width, this.canvas.height) * 0.5;
-                        const scale = maxDimension / Math.max(svgGroup.width, svgGroup.height);
-                        svgGroup.scale(scale);
-                        
-                        // Add to canvas
-                        this.canvas.add(svgGroup);
-                        this.canvas.setActiveObject(svgGroup);
-                        this.canvas.renderAll();
-                        
-                        // Add to design layers
-                        const layerId = this.generateId();
-                        if (!this.designLayers[this.currentView]) {
-                            this.designLayers[this.currentView] = [];
-                        }
-                        
-                        this.designLayers[this.currentView].push({
-                            id: layerId,
-                            name: svgData.file_name || 'SVG Element',
-                            type: 'svg',
-                            object: svgGroup,
-                            svg_content: svgData.content,
-                            file_url: svgData.file_url,
-                            text_elements: svgData.text_elements || [],
-                            editable: svgData.editable || false
-                        });
-                        this.updateLayersPanel();
-                        
-                        // If the SVG has editable text, show text editing options
-                        if (svgData.editable && svgData.text_elements && svgData.text_elements.length > 0) {
-                            this.showEditableSVGText(layerId, svgData.text_elements);
-                        }
-                        
+            try {
+                fabric.loadSVGFromString(svgData.content, (objects, options) => {                        
+                    if (!objects || objects.length === 0) {
+                        console.error('No SVG objects loaded');
+                        alert(cd_vars.messages.invalid_svg || 'Invalid SVG content');
                         this._processingAddSVG = false;
-                    }, null, { crossOrigin: 'anonymous' });
-                } catch (e) {
-                    console.error('Exception when processing SVG:', e);
-                    alert(cd_vars.messages.svg_processing_error || 'Error processing SVG');
+                        return;
+                    }
+    
+                    // Create the SVG group object
+                    const svgGroup = new fabric.Group(objects, {
+                        left: this.canvas.width / 2,
+                        top: this.canvas.height / 2,
+                        name: 'svg-element',
+                        originX: 'center',
+                        originY: 'center'
+                    });
+                    
+                    // Scale to reasonable size
+                    const maxDimension = Math.min(this.canvas.width, this.canvas.height) * 0.5;
+                    const scale = maxDimension / Math.max(svgGroup.width, svgGroup.height);
+                    svgGroup.scale(scale);
+                    
+                    // Add to canvas
+                    this.canvas.add(svgGroup);
+                    this.canvas.setActiveObject(svgGroup);
+                    this.canvas.renderAll();
+                        // Ensure elements are positioned within the canvas
+                        svgGroup.set({
+                        left: this.canvas.width / 2,
+                        top: this.canvas.height / 2,
+                        scaleX: scale,
+                        scaleY: scale,
+                        originX: 'center',
+                        originY: 'center'
+                    });
+                    // Add to design layers
+                    const layerId = this.generateId();
+                    if (!this.designLayers[this.currentView]) {
+                        this.designLayers[this.currentView] = [];
+                    }
+                    
+                    this.designLayers[this.currentView].push({
+                        id: layerId,
+                        name: svgData.file_name || 'SVG Element',
+                        type: 'svg',
+                        object: svgGroup,
+                        svg_content: svgData.content,
+                        file_url: svgData.file_url,
+                        text_elements: svgData.text_elements || [],
+                        editable: svgData.editable || false
+                    });
+                    this.updateLayersPanel();
+                    
+                    // If the SVG has editable text, show text editing options
+                    if (svgData.editable && svgData.text_elements && svgData.text_elements.length > 0) {
+                        this.showEditableSVGText(layerId, svgData.text_elements);
+                    }
+                    
                     this._processingAddSVG = false;
-                }
-            }, 1000);
+                }, null, { crossOrigin: 'anonymous' });
+            } catch (e) {
+                console.error('Exception when processing SVG:', e);
+                alert(cd_vars.messages.svg_processing_error || 'Error processing SVG');
+                this._processingAddSVG = false;
+            }
         }
         /**
          * Show editable text elements for an uploaded SVG
@@ -1256,12 +1267,18 @@
 
 
         // Switch between views: left right front back
-        switchView(viewType) {
+        switchView(viewType) { 
+            // Store reference to current AJAX request
+            if (this.pendingViewRequest) {
+                this.pendingViewRequest.abort();
+                this.pendingViewRequest = null;
+            }
             // Check if view exists
             if (!this.templateViews[viewType]) {
                 // Try to load the view if it doesn't exist yet
+                console.log("check url in switch view: ", cd_vars.ajax_url)
                 this.showLoading();
-                $.ajax({
+                this.pendingViewRequest = $.ajax({
                     url: cd_vars.ajax_url,
                     type: 'POST',
                     data: {
@@ -1270,6 +1287,7 @@
                         template_id: this.options.templateId
                     },
                     success: (response) => {
+                        this.pendingViewRequest = null;
                         this.hideLoading();
                         if (response.success && response.data.views[viewType]) {
                             this.templateViews = response.data.views;
@@ -1285,7 +1303,6 @@
                 });
                 return;
             }
-            this.saveCurrentViewLayers();
             
             this.performViewSwitch(viewType);         
         }
@@ -1669,7 +1686,6 @@
         saveDesign() {
             this.showLoading();
             // Save current view first
-            this.saveCurrentViewLayers();
             
             // Create a copy of the canvas for preview
             const tempCanvas = document.createElement('canvas');
@@ -1762,7 +1778,7 @@
                     design_data: designDataJSON,
                     preview_image: previewImage,          // For backward compatibility
                     preview_images: JSON.stringify(previewImages),  // For multi-view support
-                    view_types: Object.keys(designData.views).join(',')
+                    view_type: Object.keys(designData.views).join(',')
                 },
                 success: (response) => {
                     if (response.success) {

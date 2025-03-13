@@ -470,7 +470,6 @@ class CD_Template {
             wp_send_json_error(array('message' => __('Invalid design data format', 'clothing-designer')));
             return;
         }
-
         
         if (empty($design_data)) {
             wp_send_json_error(array('message' => __('No design data provided', 'clothing-designer')));
@@ -741,8 +740,8 @@ class CD_Template {
         $design_id = isset($_POST['design_id']) ? intval($_POST['design_id']) : 0;
         $element_id = isset($_POST['element_id']) ? sanitize_text_field($_POST['element_id']) : '';
         $svg_content = isset($_POST['svg_content']) ? wp_unslash($_POST['svg_content']) : '';
-        $view_types = isset($_POST['view_types']) ? sanitize_text_field($_POST['view_types']) : '';
-        error_log('Saving design with views: ' . $view_types);
+        $view_type = isset($_POST['view_type']) ? sanitize_text_field($_POST['view_type']) : '';
+        error_log('Saving design with views: ' . $view_type);
 
         if ($design_id <= 0 || empty($element_id) || empty($svg_content)) {
             wp_send_json_error();
@@ -765,13 +764,42 @@ class CD_Template {
             wp_send_json_error();
             return;
         }
-        
-        // Update element with SVG content
-        foreach ($design_data['elements'] as &$element) {
-            if (isset($element['id']) && $element['id'] === $element_id) {
-                $element['svg_content'] = $svg_content;
-                break;
+          // Check if we're using the new format with views
+          if (isset($design_data['views']) && is_array($design_data['views'])) {
+            // Make sure the view exists
+            if (!isset($design_data['views'][$view_type])) {
+                $design_data['views'][$view_type] = array('elements' => array());
             }
+            
+            // Make sure elements array exists
+            if (!isset($design_data['views'][$view_type]['elements'])) {
+                $design_data['views'][$view_type]['elements'] = array();
+            }
+            
+            // Update element with SVG content
+            $element_updated = false;
+            foreach ($design_data['views'][$view_type]['elements'] as &$element) {
+                if (isset($element['id']) && $element['id'] === $element_id) {
+                    $element['svg_content'] = $svg_content;
+                    $element_updated = true;
+                    break;
+                }
+            }
+        } 
+        // Legacy format without views
+        else if (isset($design_data['elements']) && is_array($design_data['elements'])) {
+            // Update element with SVG content
+            $element_updated = false;
+            foreach ($design_data['elements'] as &$element) {
+                if (isset($element['id']) && $element['id'] === $element_id) {
+                    $element['svg_content'] = $svg_content;
+                    $element_updated = true;
+                    break;
+                }
+            }
+        } else {
+            wp_send_json_error();
+            return;
         }
         
         // Update design data in database
@@ -786,7 +814,7 @@ class CD_Template {
         if ($result === false) {
             wp_send_json_error(array('message' => 'Database update failed', 'error' => $wpdb->last_error));
         } else {
-            wp_send_json_success(array('updated' => true, 'view' => $view_types));
+            wp_send_json_success(array('updated' => true, 'view' => $view_type));
         }
     }
     /**
