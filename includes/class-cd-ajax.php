@@ -60,14 +60,11 @@ class CD_Ajax {
         add_action('wp_ajax_cd_save_design', array($this, 'ajax_save_design'));
         add_action('wp_ajax_nopriv_cd_save_design', array($this, 'ajax_save_design'));
         
-        add_action('wp_ajax_cd_load_design', array($this, 'ajax_load_design'));
-        add_action('wp_ajax_nopriv_cd_load_design', array($this, 'ajax_load_design'));
-        
         add_action('wp_ajax_cd_save_design_element', array($this, 'ajax_save_design_element'));
         add_action('wp_ajax_nopriv_cd_save_design_element', array($this, 'ajax_save_design_element'));
         
-        add_action('wp_ajax_cd_view_design', array($this, 'ajax_view_design'));
-        add_action('wp_ajax_nopriv_cd_view_design', array($this, 'ajax_view_design'));
+        // add_action('wp_ajax_cd_view_design', array($this, 'ajax_view_design'));
+        // add_action('wp_ajax_nopriv_cd_view_design', array($this, 'ajax_view_design'));
         
     }
     
@@ -76,7 +73,13 @@ class CD_Ajax {
      */
     public function ajax_upload_file() {
         // Check nonce
-        if (!isset($_REQUEST['nonce']) || !wp_verify_nonce($_REQUEST['nonce'], CD_AJAX_NONCE)) {
+        $verified = (
+            isset($_REQUEST['nonce']) && wp_verify_nonce($_REQUEST['nonce'], CD_AJAX_NONCE)
+        ) || (
+            isset($_REQUEST['nonce']) && wp_verify_nonce($_REQUEST['nonce'], CD_ADMIN_NONCE)
+        );
+        
+        if (!$verified) {
             wp_send_json_error(array('message' => __('Security check failed', 'clothing-designer')));
             return;
         }
@@ -613,42 +616,6 @@ class CD_Ajax {
     }
 
     /**
-     * Load design.
-     */
-    public function ajax_load_design() {
-        // Check nonce
-        check_ajax_referer(CD_AJAX_NONCE, 'nonce');
-        
-        // Get design ID
-        $design_id = isset($_POST['design_id']) ? intval($_POST['design_id']) : 0;
-        
-        if ($design_id <= 0) {
-            wp_send_json_error(array('message' => __('Invalid design ID', 'clothing-designer')));
-            return;
-        }
-        
-        // Get design
-        global $wpdb;
-        $designs_table = $wpdb->prefix . 'cd_designs';
-        $design = $wpdb->get_row($wpdb->prepare("SELECT * FROM $designs_table WHERE id = %d", $design_id));
-        
-        if (!$design) {
-            wp_send_json_error(array('message' => __('Design not found', 'clothing-designer')));
-            return;
-        }
-        
-        // Check user permission
-        $user_id = get_current_user_id();
-        
-        if ($user_id !== 0 && $design->user_id !== 0 && $design->user_id !== $user_id && !current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => __('You do not have permission to view this design', 'clothing-designer')));
-            return;
-        }
-        
-        wp_send_json_success(array('design' => $design));
-    }
-
-    /**
      * Save design element.
      */
     public function ajax_save_design_element() {
@@ -733,9 +700,9 @@ class CD_Ajax {
         wp_send_json_success();
     }
 
-    /**
+/*   
      * View design.
-     */
+     
     public function ajax_view_design() {
         // Check nonce
         check_ajax_referer('cd-view-design', 'nonce');
@@ -777,4 +744,4 @@ class CD_Ajax {
         include(CD_PLUGIN_DIR . 'templates/design-view.php');
         exit;
     }
-}
+} */

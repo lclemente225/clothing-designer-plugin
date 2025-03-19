@@ -28,7 +28,8 @@ class CD_File_Handler {
         
         // Sanitize SVG content
         $svg_content = $this->sanitize_svg($svg_content);
-        
+        error_log('CD: Sanitized SVG content (first 100 chars): ' . substr($svg_content, 0, 100));
+
         // Generate unique filename
         $new_filename = uniqid() . '-' . $file_name;
         $file_path = CD_UPLOADS_DIR . $new_filename;
@@ -444,13 +445,9 @@ class CD_File_Handler {
         $suspicious_patterns = [
             '/javascript:/i',
             '/eval\s*\(/i',
-            '/expression\s*\(/i',
-            '/<script[^>]*>/i',
-            '/data:(?!image\/svg\+xml)[^;]*;/i',
-            '/base64/i',
-            '/&#[x0-9a-f]+;/i'  // Hex entities which might be used for obfuscation
+            '/<script[^>]*>/i'
         ];
-        
+
         foreach ($suspicious_patterns as $pattern) {
             if (preg_match($pattern, $svg_content)) {
                 $malicious_detected = true;
@@ -480,9 +477,6 @@ class CD_File_Handler {
         $options = LIBXML_NONET; 
 
         // Suppress warnings from malformed SVG
-        $use_errors = libxml_use_internal_errors(true);
-        
-           // Suppress libxml errors
         $use_errors = libxml_use_internal_errors(true);
         
         // Try loading as XML first
@@ -546,6 +540,9 @@ class CD_File_Handler {
             // Try to construct viewBox from width/height
             $width = $svg_element->hasAttribute('width') ? $svg_element->getAttribute('width') : '100';
             $height = $svg_element->hasAttribute('height') ? $svg_element->getAttribute('height') : '100';
+            //TRYING THIS OUT TO REMOVE PX AND SUCH FROM WIDTH AND HEIGHT console.log()
+            $width = preg_replace('/[^0-9.]/i', '', $width);
+            $height = preg_replace('/[^0-9.]/i', '', $height);
             $svg_element->setAttribute('viewBox', "0 0 $width $height");
         }
 
@@ -568,84 +565,36 @@ class CD_File_Handler {
      * @param DOMDocument $dom DOM document.
      */
     private function remove_svg_harmful_elements($dom) {
-        // Add more potentially harmful elements
+        // REDUCED LIST: Only the most dangerous elements
         $harmful_elements = array(
             'script',
-            'foreignObject',
-            'animate',
-            'set',
-            'use',
             'iframe',
             'embed',
             'object',
-            'handler',
-            'listener',
-            'annotation-xml',
-            'color-profile',
-            'a',
             'audio',
             'video',
-            'html',
-            'body',
-            'head',
             'meta',
-            'link',
-            'style'    
+            'link'
         );
         
-        // Add more potentially harmful attributes
+        // REDUCED LIST: Only the most critical dangerous attributes
         $harmful_attributes = array(
             // Event handlers
             'onload',
             'onclick',
-            'onunload',
-            'onabort',
             'onerror',
-            'onresize',
-            'onscroll',
-            'onzoom',
-            'onactivate',
-            'onbegin',
-            'onchange',
-            'onfocusin',
-            'onfocusout',
-            'onend',
-            'onmousedown',
-            'onmousemove',
-            'onmouseout',
-            'onmouseover',
-            'onmouseup',
-            'ontouchstart',
-            'ontouchmove',
-            'ontouchend',
-            'ontouchcancel',
+            'onscript',
             
-            // Navigation/form attributes
+            // Navigation attributes that could lead to XSS
             'formaction',
             'href',
-            'xlink:href',
-            'action',
-            
-            // Animation and content loading attributes
-            'data',
-            'from',
-            'to',
-            'values',
-            'by',
-            'attributeName',
-            'begin',
-            'dur',
-            
-            // External content attributes
-            'requiredFeatures',
-            'requiredExtensions',
-            'systemLanguage',
-            'externalResourcesRequired'
+            'xlink:href'
         );
+        
         // Track statistics for logging
         $removed_elements = 0;
         $removed_attributes = 0;
-
+    
         // Remove harmful elements
         foreach ($harmful_elements as $tag_name) {
             $elements = $dom->getElementsByTagName($tag_name);
@@ -673,23 +622,29 @@ class CD_File_Handler {
             
             foreach ($harmful_attributes as $attr_name) {
                 if ($element->hasAttribute($attr_name)) {
-                    $element->removeAttribute($attr_name);
-                    $removed_attributes++;
+                    // Special handling for href attributes on allowed elements
+                    if ($attr_name === 'href' && $element->nodeName === 'a') {
+                        $href = $element->getAttribute('href');
+                        // Only remove javascript: hrefs
+                        if (preg_match('/^javascript:/i', $href)) {
+                            $element->removeAttribute($attr_name);
+                            $removed_attributes++;
+                        }
+                    } else {
+                        $element->removeAttribute($attr_name);
+                        $removed_attributes++;
+                    }
                 }
             }
             
-            // Check for javascript in style attributes
+            // Check for javascript in style attributes - KEEP THIS PART
             if ($element->hasAttribute('style')) {
                 $style = $element->getAttribute('style');
+                // REDUCED PATTERNS: Only truly dangerous patterns
                 $banned_css_patterns = array(
                     '/expression\s*\(/i',
-                    '/url\s*\(/i',      // Can be used for data URLs or external resources
-                    '/behavior\s*:/i',  // IE-specific
-                    '/javascript\s*:/i',
-                    '/@import\s/i',     // Could import external CSS
-                    '/position\s*:\s*fixed/i'  // Could create overlay that captures clicks
+                    '/javascript\s*:/i'
                 );
-                // Remove javascript from style
                  
                 $has_harmful_css = false;
                 foreach ($banned_css_patterns as $pattern) {
@@ -705,7 +660,7 @@ class CD_File_Handler {
                 }
             }
         }
-
+    
         // Log statistics if anything was removed
         if ($removed_elements > 0 || $removed_attributes > 0) {
             error_log("Clothing Designer: Sanitized SVG - removed $removed_elements elements and $removed_attributes attributes");

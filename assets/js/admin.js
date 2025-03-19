@@ -24,6 +24,7 @@
         initDesignActions();
         initFormHandling();
         initShortcodeGeneration();
+        initDirectFileUpload();
     }
 
     // Initialize media uploaders for files and thumbnails
@@ -276,7 +277,7 @@
                     createTemplateSelectorDialog(response.data.templates);
                 } else {
                     alert(response.data.message || 'Error loading templates');
-                }
+                };
             },
             error: function() {
                 alert('Server error. Please try again.');
@@ -431,11 +432,12 @@
         //direct file upload functionality
         initDirectFileUpload();
     }
-    
+
     function initDirectFileUpload() {
         // Direct upload button click
-        $('.cd-upload-view-direct').on('click', function() {
+        $('.cd-upload-view-direct').off('click').on('click', function(event) {
             const viewType = $(this).data('view');
+            event.stopPropagation();
             // Find the file input in the same container
             $(this).closest('.cd-file-upload-container').find('.cd-view-file-input').click();
         });
@@ -533,6 +535,7 @@
             });
         });
     }
+
     // Insert designer shortcode to editor
     function insertDesignerShortcode(templateId) {
         var shortcode = '[clothing_designer template_id="' + templateId + '"]';

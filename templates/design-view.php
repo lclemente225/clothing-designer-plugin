@@ -106,7 +106,9 @@
         $design_data = json_decode($design->design_data, true);
         $current_view = isset($design_data['currentView']) ? $design_data['currentView'] : 'front';
         $views = isset($design_data['views']) ? $design_data['views'] : array();
-        error_log('check variables in design-view.php' . $design_data . $current_view . $views);
+        error_log('check variables in design-view.php - design_data: ' . print_r($design_data, true) . 
+    ' current_view: ' . $current_view . 
+    ' views: ' . print_r($views, true));
         // If views exist, show view tabs and panels
         if (!empty($views)) {
             echo '<div class="design-views">';
@@ -116,7 +118,38 @@
                      ucfirst(esc_html($view_type)) . '</div>';
             }
             echo '</div>';
-            
+       /*      {"currentView":"front",
+                "views":{
+                    "front":{
+                        "elements":[{
+                            "id":"element-yyvio7r",
+                            "name":"67d362611e26c-9862556.jpg",
+                            "type":"image",
+                            "left":509,
+                            "top":264.75,
+                            "scaleX":0.08825,
+                            "scaleY":0.08825,
+                            "angle":0,
+                            "src":"https://bmssportswear.com/wp-content/uploads/clothing-designs/67d362611e26c-9862556.jpg"
+                        }],
+                        "templateData":{
+                            "file_url":"https://bmssportswear.com/wp-content/uploads/clothing-designs/67d361dd32ea8-svg1.svg","file_type":"svg"
+                        }
+                    },"back":{
+                        "elements":[{
+                            "id":"element-8qbgk57",
+                            "name":"67d3625b01c5a-9862556.jpg",
+                            "type":"image",
+                            "left":287,
+                            "top":287.72828139754483,
+                            "scaleX":0.08825,
+                            "scaleY":0.08825,
+                            "angle":0,
+                            "src":"https://bmssportswear.com/wp-content/uploads/clothing-designs/67d3625b01c5a-9862556.jpg"
+                        }],
+                        "templateData":{"file_url":"https://bmssportswear.com/wp-content/uploads/clothing-designs/67d361e0a1656-2shirts.svg","file_type":"svg"}},
+                        "left":{"elements":[],"templateData":{"file_url":"https://bmssportswear.com/wp-content/uploads/clothing-designs/67d361e7ca344-9862554.ai","file_type":"ai"}}
+                    }} */
             echo '<div class="design-images">';
             foreach ($views as $view_type => $view_data) {
                 $active_class = ($view_type === $current_view) ? 'active' : '';

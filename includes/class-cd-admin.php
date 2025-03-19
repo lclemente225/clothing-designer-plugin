@@ -526,26 +526,12 @@ class CD_Admin {
                                     <?php if (!empty($view_file_url)) : ?>
                                     <div class="cd-view-preview">
                                         <img 
-                                            src="<?php echo esc_url__($view_file_url); ?>" 
+                                            src="<?php echo esc_url($view_file_url); ?>" 
                                             alt="<?php echo sprintf(__('%s view', 'clothing-designer'), ucfirst($view_type)); ?>"
                                         >
                                     </div>
                                     <?php endif; ?>
-                                </div>
-                                <p class="description">
-                                    <?php echo $view_type === 'front' 
-                                        ? __('Front view (required)', 'clothing-designer') 
-                                        : sprintf(__('%s view (optional)', 'clothing-designer'), ucfirst($view_type)); 
-                                    ?>
-                                </p>
-                                <?php if (!empty($view_file_url)) : ?>
-                                <div class="cd-view-preview">
-                                    <img 
-                                        src="<?php echo esc_url__($view_file_url); ?>" 
-                                        alt="<?php echo sprintf(__('%s view', 'clothing-designer'), ucfirst($view_type)); ?>"
-                                    >
-                                </div>
-                                <?php endif; ?>
+                                </div> 
                             </div>
                             <?php endforeach; ?>
                         </div>

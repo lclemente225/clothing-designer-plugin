@@ -48,9 +48,6 @@ class CD_Template {
         add_action('wp_ajax_cd_save_design', array($this, 'ajax_save_design'));
         add_action('wp_ajax_nopriv_cd_save_design', array($this, 'ajax_save_design'));
         
-        add_action('wp_ajax_cd_load_design', array($this, 'ajax_load_design'));
-        add_action('wp_ajax_nopriv_cd_load_design', array($this, 'ajax_load_design'));
-        
         add_action('wp_ajax_cd_view_design', array($this, 'ajax_view_design_template'));
         add_action('wp_ajax_nopriv_cd_view_design', array($this, 'ajax_view_design_template'));
         // Add handler for saving individual design elements
@@ -96,7 +93,7 @@ class CD_Template {
             if (file_exists($file_path)) {
                 $content = file_get_contents($file_path);
                 if ($content !== false) {
-                    error_log('CD: Successfully loaded file content from path (Method 1): ' . $file_path . $c);
+                    error_log('CD: Successfully loaded file content from path (Method 1): ' . $file_path . $content);
                     return $content;
                 }
                 error_log('CD: Failed to get file contents from path (Method 1): ' . $file_path);
@@ -378,30 +375,56 @@ class CD_Template {
         global $wpdb;
         $template_views_table = $wpdb->prefix . 'cd_template_views';
         
-        // Get the front view specifically
-        $template_view = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM `{$template_views_table}` WHERE template_id = %d AND view_type = 'front'",
+        // Get all views
+        $template_views = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM `{$template_views_table}` WHERE template_id = %d",
             $template_id
         ));
+
         // Get template file contents
-        $file_contents = $this->get_template_contents($template_view->file_url);
-        
-        if (empty($file_contents)) {
-            wp_send_json_error(array('message' => __('Failed to load template file', 'clothing-designer')));
-            return;
+        $views_data = array();
+        foreach ($template_views as $view) {
+            // Get file contents for each view
+            $file_contents = $this->get_template_contents($view->file_url);
+            
+            if (!empty($file_contents)) {
+                $views_data[$view->view_type] = array(
+                    'id' => $view->id,
+                    'file_url' => $view->file_url,
+                    'file_type' => $view->file_type,
+                    'content' => $file_contents
+                );
+            }
         }
         
-        // Prepare template data
+         // Make sure we have at least a front view
+        if (!isset($views_data['front'])) {
+            // If no front view found, use main template file as fallback
+            $file_contents = $this->get_template_contents($template->file_url);
+            
+            if (empty($file_contents)) {
+                wp_send_json_error(array('message' => __('Failed to load template file', 'clothing-designer')));
+                return;
+            }
+            
+            $views_data['front'] = array(
+                'id' => 0,
+                'file_url' => $template->file_url,
+                'file_type' => $template->file_type,
+                'content' => $file_contents
+            );
+        }
+        
+        // Prepare complete template data
         $template_data = array(
             'id' => $template->id,
             'title' => $template->title,
-            'file_url' => $template_view->file_url,
-            'file_type' => $template_view->file_type,
-            'content' => $file_contents,
+            'file_url' => $views_data['front']['file_url'],
+            'file_type' => $views_data["front"]['file_type'],
+            'views' => $views_data
         );
         
         wp_send_json_success(array('template' => $template_data));
-        return json_encode($template_data);
     }
     
     /**

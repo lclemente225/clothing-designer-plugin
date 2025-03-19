@@ -190,6 +190,11 @@ class Clothing_Designer {
                     "<FilesMatch '\.(svg|png|jpe?g|gif|ai)$'>\n" .
                     "    Require all granted\n" .
                     "</FilesMatch>\n\n" .
+                    "# Ensure SVGs are served with the correct content type\n" .
+                    "<FilesMatch '\.svg$'>\n" .
+                    "    Header set Content-Type 'image/svg+xml'\n" .
+                    "    Header set X-Content-Type-Options 'nosniff'\n" .
+                    "</FilesMatch>\n\n" .
                     "# Deny access to PHP files\n" .
                     "<FilesMatch '\.php$'>\n" .
                     "    Require all denied\n" .

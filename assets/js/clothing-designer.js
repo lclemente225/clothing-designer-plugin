@@ -330,7 +330,7 @@
          * Load SVG template
          */
         loadSVGTemplate() {
-            fabric.loadSVGFromString(this.template.content, (objects, options) => {
+            this.loadSVGWithFallbacks(this.template.content, (objects, options) => {
                 if (!objects || objects.length === 0) {
                     this.showError(cd_vars.messages.error_loading_template);
                     return;
@@ -1265,7 +1265,6 @@
             this.canvas.renderAll();
         }
 
-
         // Switch between views: left right front back
         switchView(viewType) { 
             // Store reference to current AJAX request
@@ -1683,10 +1682,8 @@
             this.loadTemplateContent();
         }
 
-        saveDesign() {
-            this.showLoading();
-            // Save current view first
-            
+        // Add this helper method to your class
+        captureCanvasPreview() {
             // Create a copy of the canvas for preview
             const tempCanvas = document.createElement('canvas');
             const tempContext = tempCanvas.getContext('2d');
@@ -1701,12 +1698,19 @@
             // Draw canvas to temp canvas
             tempContext.drawImage(this.canvas.lowerCanvasEl, 0, 0);
             
-            // Get data URL for preview
-            const previewImage = tempCanvas.toDataURL('image/png');
+            // Return data URL for preview
+            return tempCanvas.toDataURL('image/png');
+        }
+
+        saveDesign() { 
+            this.showLoading();
+            // Save current view first
+            const originalView = this.currentView;
+           
             
             // Create an object of preview images for all views
             const previewImages = {};
-            previewImages[this.currentView] = previewImage;
+            previewImages[originalView] = this.captureCanvasPreview();
             
             // Prepare design data for all views
             const designData = {
@@ -1717,6 +1721,16 @@
             // Add data for each view
             Object.keys(this.designLayers).forEach(viewType => {
                 if (this.templateViews[viewType]) {
+                    if (viewType !== this.currentView) {
+                        this.switchView(viewType);
+                        // Need to wait for view to load before capturing preview
+                        setTimeout(() => {
+                            previewImages[viewType] = capturePreview(viewType);
+                        }, 300); // Adjust timeout as needed
+                    } else {
+                        // Current view can be captured immediately
+                        previewImages[viewType] = capturePreview(viewType);
+                    }
                     designData.views[viewType] = {
                         elements: this.designLayers[viewType].map(layer => {
                             const baseData = {
@@ -1764,6 +1778,10 @@
                 }
             });
             
+            // Switch back to original view
+            if (this.currentView !== originalView) {
+                this.switchView(originalView);
+            }
             // Debug: Log the JSON data size
             const designDataJSON = JSON.stringify(designData);
             
@@ -1796,6 +1814,7 @@
                 }
             });
         }
+
         // Helper method to save the layers for current view
         saveCurrentViewLayers() {
             // Only save if we have a current view
@@ -1885,7 +1904,7 @@
                         if (processed === svgElements.length) {
                             // Continue even with errors
                             this.hideLoading();
-                            alert("Error:! ",cd_vars.messages.save_success);
+                            alert("Error:! " + cd_vars.messages.save_success);
                             this.options.designId = designId;
                         }
                     }
@@ -1957,7 +1976,103 @@
                 </div>
             `);
         }
+        /**
+         * Enhanced SVG loading with fallbacks
+         */
+        loadSVGWithFallbacks(svgContent, callback) {
+            // Try to load with Fabric.js first
+            try {
+                fabric.loadSVGFromString(svgContent, (objects, options) => {
+                    if (objects && objects.length > 0) {
+                        callback(objects, options);
+                        return;
+                    }
+                    
+                    console.warn("No objects found in SVG, trying fallback method");
+                    this.loadSVGFallback(svgContent, callback);
+                });
+            } catch (e) {
+                console.error("Error loading SVG with Fabric.js:", e);
+                this.loadSVGFallback(svgContent, callback);
+            }
+        }
 
+        /**
+         * Fallback SVG loading using image approach
+         */
+        loadSVGFallback(svgContent, callback) {
+            // Try basic cleanup first
+            const cleanedSvg = this.cleanupSVG(svgContent);
+            
+            // Try loading the cleaned version
+            try {
+                fabric.loadSVGFromString(cleanedSvg, (objects, options) => {
+                    if (objects && objects.length > 0) {
+                        callback(objects, options);
+                        return;
+                    }
+                    
+                    // Last resort: render as image
+                    this.renderSVGAsImage(svgContent, callback);
+                });
+            } catch (e) {
+                console.error("Fallback loading failed too:", e);
+                this.renderSVGAsImage(svgContent, callback);
+            }
+        }
+
+        /**
+         * Final fallback: render SVG as image
+         */
+        renderSVGAsImage(svgContent, callback) {
+            // Create data URL
+            const svgBlob = new Blob([svgContent], {type: 'image/svg+xml'});
+            const url = URL.createObjectURL(svgBlob);
+            
+            // Load as image
+            fabric.Image.fromURL(url, (img) => {
+                // Create a collection with this single image
+                callback([img], {});
+                
+                // Clean up the URL
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        /**
+         * Basic client-side SVG cleanup
+         */
+        cleanupSVG(svgContent) {
+            // Make sure SVG tag is well-formed
+            let cleaned = svgContent.trim();
+            
+            // Add XML declaration if missing
+            if (!cleaned.startsWith('<?xml')) {
+                cleaned = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>' + cleaned;
+            }
+            
+            // Ensure SVG has xmlns
+            if (cleaned.indexOf('xmlns="http://www.w3.org/2000/svg"') === -1) {
+                cleaned = cleaned.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+            }
+            
+            // Fix common issues with viewBox
+            if (cleaned.indexOf('viewBox') === -1) {
+                // Try to extract width and height
+                const widthMatch = cleaned.match(/width=["']([^"']+)["']/);
+                const heightMatch = cleaned.match(/height=["']([^"']+)["']/);
+                
+                if (widthMatch && heightMatch) {
+                    const width = parseFloat(widthMatch[1]);
+                    const height = parseFloat(heightMatch[1]);
+                    cleaned = cleaned.replace('<svg', `<svg viewBox="0 0 ${width} ${height}"`);
+                } else {
+                    cleaned = cleaned.replace('<svg', '<svg viewBox="0 0 100 100"');
+                }
+            }
+            
+            return cleaned;
+        }
         /**
          * Generate unique ID
          *

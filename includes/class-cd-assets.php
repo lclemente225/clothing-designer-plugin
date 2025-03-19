@@ -59,16 +59,7 @@ class CD_Assets {
      * Enqueue scripts and styles.
      */
     public function enqueue_scripts() {
-        // Register styles
-        wp_register_style('cd-style', CD_PLUGIN_URL . 'assets/css/clothing-designer.css', array(), CD_VERSION);
-        
-        // Register scripts
-        wp_register_script('fabric-js', CD_PLUGIN_URL . 'assets/js/fabric.min.js', array(), '5.3.1', true);
-        wp_register_script('svg-js', CD_PLUGIN_URL . 'assets/js/svg.min.js', array(), '3.2.0', true);
-        wp_register_script('cd-script', CD_PLUGIN_URL . 'assets/js/clothing-designer.js', array('jquery', 'fabric-js', 'svg-js'), CD_VERSION, true);
-        
-        // Localize script
-        wp_localize_script('cd-script', 'cd_vars', $this->get_localization_data());
+        $this->register_scripts();
     
         // Check if our assets should be enqueued
         $should_enqueue = false;

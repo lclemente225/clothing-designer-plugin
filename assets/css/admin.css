@@ -146,6 +146,31 @@
     max-width: 300px;
     max-height: 300px;
 }
+
+/* Upload buttons container */
+.cd-upload-buttons {
+    display: flex;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+/* Progress bar */
+.cd-upload-progress {
+    height: 5px;
+    width: 100%;
+    background-color: #f0f0f0;
+    margin-top: 5px;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.cd-upload-progress-bar {
+    height: 100%;
+    background-color: #2271b1;
+    width: 0;
+    transition: width 0.3s ease;
+}
+
 /* Shortcode info */
 .cd-shortcode-info {
     margin-top: 30px;
