@@ -17,7 +17,14 @@ class CD_Ajax {
      * @var CD_Ajax
      */
     private static $instance = null;
-    
+
+    /**
+     * Template class instance.
+     *
+     * @var CD_Template
+     */
+    private $template_class;
+
     /**
      * Get instance.
      *
@@ -34,6 +41,7 @@ class CD_Ajax {
      * Constructor.
      */
     private function __construct() {
+        $this->template_class = CD_Template::get_instance();
         $this->init_hooks();
     }
     
@@ -567,7 +575,7 @@ class CD_Ajax {
             error_log('Clothing Designer: Preview image too large: ' . size_format(strlen($data)));
             
             // Try to resize the image
-            $resized_data = $this->resize_image_data($data);
+            $resized_data = $this->template_class->resize_image_data($data);
             if (strlen($resized_data) > $max_size) {
                 error_log('Clothing Designer: Failed to reduce image size sufficiently');
                 return '';
@@ -743,5 +751,46 @@ class CD_Ajax {
         // Output design view
         include(CD_PLUGIN_DIR . 'templates/design-view.php');
         exit;
+    } */
+       public function ajax_view_design() {
+        // Check nonce
+        check_ajax_referer('cd-view-design', 'nonce');
+        // Get design ID
+        $design_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+        if ($design_id <= 0) {
+                    wp_die(__('Invalid design ID', 'clothing-designer'));
+                    return;
+        }
+        // Check permissions - allow viewing by design owners or administrators
+        $design = $this->template_class->get_design($design_id);
+       
+        if (!$design) {
+            wp_die(__('Design not found', 'clothing-designer'));
+            return;
+        }
+
+    
+        // Allow admins and design creators to view designs
+        // In CD_Template class:
+        if (!$this->template_class->can_access_design($design)) {
+            wp_die(__('You do not have permission to access this design', 'clothing-designer'));
+            return;
+        } 
+        
+        // Get template
+        $template = $this->template_class->get_template($design->template_id);
+        
+        if (!$template) {
+            wp_die(__('Template not found', 'clothing-designer'));
+            return;
+        }
+        $design->template_title = $template->title;
+        // Get user info
+        $user_info = $design->user_id > 0 ? get_userdata($design->user_id) : null;
+        $user_name = $user_info ? $user_info->display_name : __('Guest', 'clothing-designer');
+        
+        // Output design preview
+        include(CD_PLUGIN_DIR . 'templates/design-view.php');
+        exit;
     }
-} */
+}

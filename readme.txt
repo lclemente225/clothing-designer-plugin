@@ -1,5 +1,5 @@
 === Clothing Designer ===
-Contributors: yourusername
+Contributors: lclemente225
 Tags: clothing, designer, svg, product designer, customization, illustrator, woocommerce
 Requires at least: 5.6
 Tested up to: 6.4

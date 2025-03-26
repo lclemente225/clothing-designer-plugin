@@ -1684,29 +1684,32 @@
 
         // Add this helper method to your class
         captureCanvasPreview() {
-            // Create a copy of the canvas for preview
-            const tempCanvas = document.createElement('canvas');
-            const tempContext = tempCanvas.getContext('2d');
-            
-            tempCanvas.width = this.canvas.width;
-            tempCanvas.height = this.canvas.height;
-            
-            // Fill with white background
-            tempContext.fillStyle = '#ffffff';
-            tempContext.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-            
-            // Draw canvas to temp canvas
-            tempContext.drawImage(this.canvas.lowerCanvasEl, 0, 0);
-            
-            // Return data URL for preview
-            return tempCanvas.toDataURL('image/png');
+           try{
+                // Create a copy of the canvas for preview
+                const tempCanvas = document.createElement('canvas');
+                const tempContext = tempCanvas.getContext('2d');
+                
+                tempCanvas.width = this.canvas.width;
+                tempCanvas.height = this.canvas.height;
+                
+                // Fill with white background
+                tempContext.fillStyle = '#ffffff';
+                tempContext.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                
+                // Draw canvas to temp canvas
+                tempContext.drawImage(this.canvas.lowerCanvasEl, 0, 0);
+                
+                // Return data URL for preview
+                return tempCanvas.toDataURL('image/png');
+            }catch(err){
+                console.log("error: ", err)
+            }
         }
 
         saveDesign() { 
             this.showLoading();
             // Save current view first
             const originalView = this.currentView;
-           
             
             // Create an object of preview images for all views
             const previewImages = {};
@@ -1725,11 +1728,11 @@
                         this.switchView(viewType);
                         // Need to wait for view to load before capturing preview
                         setTimeout(() => {
-                            previewImages[viewType] = capturePreview(viewType);
+                            previewImages[viewType] = captureCanvasPreview(viewType);
                         }, 300); // Adjust timeout as needed
                     } else {
                         // Current view can be captured immediately
-                        previewImages[viewType] = capturePreview(viewType);
+                        previewImages[viewType] = captureCanvasPreview(viewType);
                     }
                     designData.views[viewType] = {
                         elements: this.designLayers[viewType].map(layer => {
@@ -1784,7 +1787,8 @@
             }
             // Debug: Log the JSON data size
             const designDataJSON = JSON.stringify(designData);
-            
+            const previewImage = previewImages[originalView];
+            console.log("check preview", previewImages, " design data: ", designData.views)
             // Send to server
             $.ajax({
                 url: cd_vars.ajax_url,

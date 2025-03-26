@@ -48,14 +48,15 @@ class CD_Template {
         add_action('wp_ajax_cd_save_design', array($this, 'ajax_save_design'));
         add_action('wp_ajax_nopriv_cd_save_design', array($this, 'ajax_save_design'));
         
-        add_action('wp_ajax_cd_view_design', array($this, 'ajax_view_design_template'));
-        add_action('wp_ajax_nopriv_cd_view_design', array($this, 'ajax_view_design_template'));
         // Add handler for saving individual design elements
         add_action('wp_ajax_cd_save_design_element', array($this, 'ajax_save_design_element'));
         add_action('wp_ajax_nopriv_cd_save_design_element', array($this, 'ajax_save_design_element'));
 
         add_action('wp_ajax_cd_get_template_views', array($this, 'ajax_get_template_views'));
         add_action('wp_ajax_nopriv_cd_get_template_views', array($this, 'ajax_get_template_views'));
+        
+        add_action('wp_ajax_cd_load_design', array($this, 'ajax_load_design'));
+        add_action('wp_ajax_nopriv_cd_load_design', array($this, 'ajax_load_design'));
     }
     
     /**
@@ -261,7 +262,6 @@ class CD_Template {
             error_log('Clothing Designer: Error saving design: ' . $e->getMessage());
             return false;
         }
-        ;
     }
 
     /**
@@ -455,33 +455,6 @@ class CD_Template {
             return;
         }
         
-        $preview_url = '';
-        if (!empty($preview_image)) {
-            // Extract the base64 data
-            $image_parts = explode(';base64,', $preview_image);
-            
-            // Make sure we have valid base64 data
-            if (count($image_parts) === 2) {
-                $image_data = base64_decode($image_parts[1]);
-                
-                // Generate a unique filename
-                $filename = 'design-preview-' . uniqid() . '.png';
-                $upload_dir = CD_UPLOADS_DIR;
-                $file_path = $upload_dir . $filename;
-                
-                // Ensure directory exists
-                if (!file_exists($upload_dir)) {
-                    wp_mkdir_p($upload_dir);
-                }
-                
-                // Save the file
-                if (file_put_contents($file_path, $image_data)) {
-                    $preview_url = CD_UPLOADS_URL . $filename;
-                } else {
-                    error_log('Failed to save preview image: ' . $file_path);
-                }
-            }
-        }
         // Don't try to validate JSON structure - just make sure it's valid JSON
         if (empty($design_data)) {
             wp_send_json_error(array('message' => __('No design data provided', 'clothing-designer')));
@@ -502,7 +475,7 @@ class CD_Template {
         // Get preview image
         $preview_url = '';
         
-        if (isset($_POST['preview_image']) && !empty($_POST['preview_image'])) {
+        if ($preview_image) {
             // Get preview image data
             $preview_image = sanitize_text_field($_POST['preview_image']);
             
@@ -671,48 +644,7 @@ class CD_Template {
     /**
      * Ajax view design.
      */
-    public function ajax_view_design_template() {
-        // Check nonce
-        check_ajax_referer('cd-view-design', 'nonce');
-       
-        // Get design ID
-        $design_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-        // Check permissions - allow viewing by design owners or administrators
-        $design = $this->get_design($design_id);
-
-        if (!$design) {
-            wp_die(__('Design not found', 'clothing-designer'));
-            return;
-        }
-
-        if ($design_id <= 0) {
-                wp_die(__('Invalid design ID', 'clothing-designer'));
-                return;
-        }
-
-        // Allow admins and design creators to view designs
-        // In CD_Template's ajax_view_design method:
-        if (!$this->can_access_design($design)) {
-            wp_die(__('You do not have permission to access this design', 'clothing-designer'));
-            return;
-        }        
-        
-        // Get template
-        $template = $this->get_template($design->template_id);
-        
-        if (!$template) {
-            wp_die(__('Template not found', 'clothing-designer'));
-            return;
-        }
-        $design->template_title = $template->title;
-        // Get user info
-        $user_info = $design->user_id > 0 ? get_userdata($design->user_id) : null;
-        $user_name = $user_info ? $user_info->display_name : __('Guest', 'clothing-designer');
-        
-        // Output design preview
-        include(CD_PLUGIN_DIR . 'templates/design-view.php');
-        exit;
-    }
+ 
 
     /**
      * Check if user can view or edit a design.

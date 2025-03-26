@@ -93,32 +93,47 @@
     <script src="<?php echo includes_url('/js/jquery/jquery.js'); ?>"></script>
 </head>
 <body>
-    <div class="design-preview">
-        <div class="design-header">
-            <h1 class="design-title"><?php echo esc_html($design->template_title); ?> - <?php echo __('Design Preview', 'clothing-designer'); ?></h1>
-            <div class="design-meta">
-                <?php echo __('Template:', 'clothing-designer'); ?> <strong><?php echo esc_html($design->template_title); ?></strong>
-            </div>
-        </div>
-        
-        <?php
-        // Parse design data to extract views
-        $design_data = json_decode($design->design_data, true);
-        $current_view = isset($design_data['currentView']) ? $design_data['currentView'] : 'front';
-        $views = isset($design_data['views']) ? $design_data['views'] : array();
-        error_log('check variables in design-view.php - design_data: ' . print_r($design_data, true) . 
-    ' current_view: ' . $current_view . 
-    ' views: ' . print_r($views, true));
-        // If views exist, show view tabs and panels
-        if (!empty($views)) {
-            echo '<div class="design-views">';
-            foreach (array_keys($views) as $view_type) {
-                $active_class = ($view_type === $current_view) ? 'active' : '';
-                echo '<div class="view-tab ' . $active_class . '" data-view="' . esc_attr($view_type) . '">' . 
-                     ucfirst(esc_html($view_type)) . '</div>';
+    
+<!-- /*      
+
+{
+    "currentView":"back",
+    "views":{
+        "front":{
+            "elements":[{
+                "id":"element-drkfcis",
+                "name":"svg1.svg",
+                "type":"svg",
+                "left":439,"top":264.75,
+                "scaleX":0.2204412989175687,"scaleY":0.2204412989175687,
+                "angle":0,
+                "svg_content":">",
+                "file_url":"https://josephine-clemente.com/staging/7800/wp-content/uploads/clothing-designs/67e439eb745f0-svg1.svg",
+                "text_elements":[]
+            }],
+            "templateData":{
+                "file_url":"https://josephine-clemente.com/staging/7800/wp-content/uploads/clothing-designs/67dde5dd4d342-shirt.svg","file_type":"svg"
             }
-            echo '</div>';
-       /*      {"currentView":"front",
+        },
+        "left":{
+            "elements":[],
+            "templateData":{
+                "file_url":"https://josephine-clemente.com/staging/7800/wp-content/uploads/clothing-designs/67df0315783c6-2shirts.svg",
+                "file_type":"svg"
+            }
+        },
+        "right":{
+            "elements":[],
+            "templateData":{
+                "file_url":"https://josephine-clemente.com/staging/7800/wp-content/uploads/clothing-designs/67df031ad7c01-blank-shirt-svgrepo-com.svg",
+                "file_type":"svg"
+            }
+        }
+    }
+}
+
+
+            {"currentView":"front",
                 "views":{
                     "front":{
                         "elements":[{
@@ -149,7 +164,32 @@
                         }],
                         "templateData":{"file_url":"https://bmssportswear.com/wp-content/uploads/clothing-designs/67d361e0a1656-2shirts.svg","file_type":"svg"}},
                         "left":{"elements":[],"templateData":{"file_url":"https://bmssportswear.com/wp-content/uploads/clothing-designs/67d361e7ca344-9862554.ai","file_type":"ai"}}
-                    }} */
+                    }} */ -->
+    <div class="design-preview">
+        <div class="design-header">
+            <h1 class="design-title"><?php echo esc_html($design->template_title); ?> - <?php echo __('Design Preview', 'clothing-designer'); ?></h1>
+            <div class="design-meta">
+                <?php echo __('Template:', 'clothing-designer'); ?> <strong><?php echo esc_html($design->template_title); ?></strong>
+            </div>
+        </div>
+        
+        <?php
+        // Parse design data to extract views
+        $design_data = json_decode($design->design_data, true);
+        $current_view = isset($design_data['currentView']) ? $design_data['currentView'] : 'front';
+        $views = isset($design_data['views']) ? $design_data['views'] : array();
+        error_log('check variables in design-view.php - design_data: ' . print_r($design_data, true) . 
+    ' current_view: ' . $current_view . 
+    ' views: ' . print_r($views, true));
+        // If views exist, show view tabs and panels
+        if (!empty($views)) {
+            echo '<div class="design-views">';
+            foreach (array_keys($views) as $view_type) {
+                $active_class = ($view_type === $current_view) ? 'active' : '';
+                echo '<div class="view-tab ' . $active_class . '" data-view="' . esc_attr($view_type) . '">' . 
+                     ucfirst(esc_html($view_type)) . '</div>';
+            }
+            echo '</div>';
             echo '<div class="design-images">';
             foreach ($views as $view_type => $view_data) {
                 $active_class = ($view_type === $current_view) ? 'active' : '';
@@ -200,6 +240,7 @@
     </div>
 
     <script>
+        console.log("loaded design")
     jQuery(document).ready(function($) {
         // View tab click handler
         $('.view-tab').on('click', function() {
