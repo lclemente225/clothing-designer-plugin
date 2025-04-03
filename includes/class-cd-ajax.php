@@ -71,8 +71,8 @@ class CD_Ajax {
         add_action('wp_ajax_cd_save_design_element', array($this, 'ajax_save_design_element'));
         add_action('wp_ajax_nopriv_cd_save_design_element', array($this, 'ajax_save_design_element'));
         
-        // add_action('wp_ajax_cd_view_design', array($this, 'ajax_view_design'));
-        // add_action('wp_ajax_nopriv_cd_view_design', array($this, 'ajax_view_design'));
+        add_action('wp_ajax_cd_view_design', array($this, 'ajax_view_design'));
+        add_action('wp_ajax_nopriv_cd_view_design', array($this, 'ajax_view_design'));
         
     }
     

@@ -678,7 +678,9 @@ class CD_Admin {
                                     <td><?php echo esc_html($design->user_name ?: __('Guest', 'clothing-designer')); ?></td>
                                     <td><?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($design->created_at))); ?></td>
                                     <td>
-                                        <a href="<?php echo esc_url(admin_url('admin-ajax.php?action=cd_view_design&id=' . $design->id . '&nonce=' . wp_create_nonce('cd-view-design'))); ?>" class="button button-small" target="_blank"><?php echo __('View', 'clothing-designer'); ?></a>
+                                        <a href="<?php echo esc_url(admin_url('admin-ajax.php?action=cd_view_design&id=' . $design->id . '&nonce=' . wp_create_nonce('cd-view-design'))); ?>" class="button button-small" target="_blank">
+                                            <?php echo __('View', 'clothing-designer'); ?>
+                                        </a>
                                         <button class="button button-small button-link-delete cd-delete-design" data-id="<?php echo esc_attr($design->id); ?>"><?php echo __('Delete', 'clothing-designer'); ?></button>
                                     </td>
                                 </tr>
