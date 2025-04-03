@@ -93,78 +93,6 @@
     <script src="<?php echo includes_url('/js/jquery/jquery.js'); ?>"></script>
 </head>
 <body>
-    
-<!-- /*      
-
-{
-    "currentView":"back",
-    "views":{
-        "front":{
-            "elements":[{
-                "id":"element-drkfcis",
-                "name":"svg1.svg",
-                "type":"svg",
-                "left":439,"top":264.75,
-                "scaleX":0.2204412989175687,"scaleY":0.2204412989175687,
-                "angle":0,
-                "svg_content":">",
-                "file_url":"https://josephine-clemente.com/staging/7800/wp-content/uploads/clothing-designs/67e439eb745f0-svg1.svg",
-                "text_elements":[]
-            }],
-            "templateData":{
-                "file_url":"https://josephine-clemente.com/staging/7800/wp-content/uploads/clothing-designs/67dde5dd4d342-shirt.svg","file_type":"svg"
-            }
-        },
-        "left":{
-            "elements":[],
-            "templateData":{
-                "file_url":"https://josephine-clemente.com/staging/7800/wp-content/uploads/clothing-designs/67df0315783c6-2shirts.svg",
-                "file_type":"svg"
-            }
-        },
-        "right":{
-            "elements":[],
-            "templateData":{
-                "file_url":"https://josephine-clemente.com/staging/7800/wp-content/uploads/clothing-designs/67df031ad7c01-blank-shirt-svgrepo-com.svg",
-                "file_type":"svg"
-            }
-        }
-    }
-}
-
-
-            {"currentView":"front",
-                "views":{
-                    "front":{
-                        "elements":[{
-                            "id":"element-yyvio7r",
-                            "name":"67d362611e26c-9862556.jpg",
-                            "type":"image",
-                            "left":509,
-                            "top":264.75,
-                            "scaleX":0.08825,
-                            "scaleY":0.08825,
-                            "angle":0,
-                            "src":"https://bmssportswear.com/wp-content/uploads/clothing-designs/67d362611e26c-9862556.jpg"
-                        }],
-                        "templateData":{
-                            "file_url":"https://bmssportswear.com/wp-content/uploads/clothing-designs/67d361dd32ea8-svg1.svg","file_type":"svg"
-                        }
-                    },"back":{
-                        "elements":[{
-                            "id":"element-8qbgk57",
-                            "name":"67d3625b01c5a-9862556.jpg",
-                            "type":"image",
-                            "left":287,
-                            "top":287.72828139754483,
-                            "scaleX":0.08825,
-                            "scaleY":0.08825,
-                            "angle":0,
-                            "src":"https://bmssportswear.com/wp-content/uploads/clothing-designs/67d3625b01c5a-9862556.jpg"
-                        }],
-                        "templateData":{"file_url":"https://bmssportswear.com/wp-content/uploads/clothing-designs/67d361e0a1656-2shirts.svg","file_type":"svg"}},
-                        "left":{"elements":[],"templateData":{"file_url":"https://bmssportswear.com/wp-content/uploads/clothing-designs/67d361e7ca344-9862554.ai","file_type":"ai"}}
-                    }} */ -->
     <div class="design-preview">
         <div class="design-header">
             <h1 class="design-title"><?php echo esc_html($design->template_title); ?> - <?php echo __('Design Preview', 'clothing-designer'); ?></h1>
@@ -234,7 +162,7 @@
                 echo esc_html__('Created by:', 'clothing-designer'); ?> <strong><?php echo esc_html($user_name); ?></strong>
             </div>
             <div class="design-date">
-                <?php echo esc_html__(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($design->created_at))); ?>
+                <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($design->created_at))); ?>
             </div>
         </div>
     </div>

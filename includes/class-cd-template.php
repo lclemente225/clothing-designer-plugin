@@ -445,7 +445,6 @@ class CD_Template {
         
         // Get user ID
         $user_id = get_current_user_id();
-        
         // Get template ID
         $template_id = isset($_POST['template_id']) ? intval($_POST['template_id']) : 0;
         $design_data = isset($_POST['design_data']) ? wp_unslash($_POST['design_data']) : '';
@@ -464,11 +463,6 @@ class CD_Template {
         json_decode($design_data);
         if (json_last_error() !== JSON_ERROR_NONE) {
             wp_send_json_error(array('message' => __('Invalid design data format', 'clothing-designer')));
-            return;
-        }
-        
-        if (empty($design_data)) {
-            wp_send_json_error(array('message' => __('No design data provided', 'clothing-designer')));
             return;
         }
         

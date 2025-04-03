@@ -1728,11 +1728,11 @@
                         this.switchView(viewType);
                         // Need to wait for view to load before capturing preview
                         setTimeout(() => {
-                            previewImages[viewType] = captureCanvasPreview(viewType);
+                            previewImages[viewType] = this.captureCanvasPreview(viewType);
                         }, 300); // Adjust timeout as needed
                     } else {
                         // Current view can be captured immediately
-                        previewImages[viewType] = captureCanvasPreview(viewType);
+                        previewImages[viewType] = this.captureCanvasPreview(viewType);
                     }
                     designData.views[viewType] = {
                         elements: this.designLayers[viewType].map(layer => {
