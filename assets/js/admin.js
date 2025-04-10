@@ -25,6 +25,57 @@
         initFormHandling();
         initShortcodeGeneration();
         initDirectFileUpload();
+        initBulkActions();
+    }
+    // Initialize bulk actions
+    function initBulkActions() {
+        // Select all checkbox for templates
+        $('#cd-select-all-templates').on('change', function() {
+            $('.cd-template-checkbox').prop('checked', $(this).prop('checked'));
+        });
+        
+        // Select all checkbox for designs
+        $('#cd-select-all-designs').on('change', function() {
+            $('.cd-design-checkbox').prop('checked', $(this).prop('checked'));
+        });
+        
+        // Bulk action for templates
+        $('.cd-bulk-action-templates').on('click', function() {
+            const action = $('#bulk-action-selector-top').val();
+            if (action === 'delete') {
+                const selectedIds = $('.cd-template-checkbox:checked').map(function() {
+                    return $(this).val();
+                }).get();
+                
+                if (selectedIds.length === 0) {
+                    alert('Please select at least one template to delete.');
+                    return;
+                }
+                
+                if (confirm('Are you sure you want to delete ' + selectedIds.length + ' templates? This cannot be undone.')) {
+                    bulkDeleteTemplates(selectedIds);
+                }
+            }
+        });
+        
+        // Bulk action for designs
+        $('.cd-bulk-action-designs').on('click', function() {
+            const action = $('#bulk-action-selector-top').val();
+            if (action === 'delete') {
+                const selectedIds = $('.cd-design-checkbox:checked').map(function() {
+                    return $(this).val();
+                }).get();
+                
+                if (selectedIds.length === 0) {
+                    alert('Please select at least one design to delete.');
+                    return;
+                }
+                
+                if (confirm('Are you sure you want to delete ' + selectedIds.length + ' designs? This cannot be undone.')) {
+                    bulkDeleteDesigns(selectedIds);
+                }
+            }
+        });
     }
 
     // Initialize media uploaders for files and thumbnails
@@ -551,6 +602,55 @@
                 textArea.val(textArea.val() + shortcode);
             }
         }
+    }
+
+
+    // Bulk delete templates
+    function bulkDeleteTemplates(ids) {
+        $.ajax({
+            url: cd_admin_vars.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'cd_bulk_delete_templates',
+                template_ids: ids,
+                nonce: cd_admin_vars.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert(response.data.message);
+                    location.reload();
+                } else {
+                    alert(response.data.message || 'Error deleting templates');
+                }
+            },
+            error: function() {
+                alert('Server error. Please try again.');
+            }
+        });
+    }
+
+    // Bulk delete designs
+    function bulkDeleteDesigns(ids) {
+        $.ajax({
+            url: cd_admin_vars.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'cd_bulk_delete_designs',
+                design_ids: ids,
+                nonce: cd_admin_vars.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert(response.data.message);
+                    location.reload();
+                } else {
+                    alert(response.data.message || 'Error deleting designs');
+                }
+            },
+            error: function() {
+                alert('Server error. Please try again.');
+            }
+        });
     }
     
     // Initialize when document is ready

@@ -60,6 +60,8 @@ class CD_Admin {
         add_action('wp_ajax_cd_get_templates', array($this, 'ajax_get_templates'));
         add_action('wp_ajax_cd_get_template_views', array($this, 'ajax_get_template_views'));
         add_action('wp_ajax_nopriv_cd_get_template_views', array($this, 'ajax_get_template_views'));
+        add_action('wp_ajax_cd_bulk_delete_templates', array($this, 'ajax_bulk_delete_templates'));
+        add_action('wp_ajax_cd_bulk_delete_designs', array($this, 'ajax_bulk_delete_designs'));
     }
     
     /**
@@ -394,10 +396,33 @@ class CD_Admin {
                     <div class="cd-no-templates">
                         <p><?php echo __('No templates found. Click "Add New" to create your first template.', 'clothing-designer'); ?></p>
                     </div>
-                <?php else : ?>
+                <?php else : ?>   
+                    <!-- Add bulk actions here -->
+                    <div class="tablenav top">
+                        <div class="alignleft actions bulkactions">
+                            <label for="bulk-action-selector-top" class="screen-reader-text"><?php _e('Select bulk action', 'clothing-designer'); ?></label>
+                            <select name="action" id="bulk-action-selector-top">
+                                <option value="-1"><?php _e('Bulk Actions', 'clothing-designer'); ?></option>
+                                <option value="delete"><?php _e('Delete', 'clothing-designer'); ?></option>
+                            </select>
+                            <input type="button" id="doaction" class="button action cd-bulk-action-templates" value="<?php esc_attr_e('Apply', 'clothing-designer'); ?>">
+                        </div>
+                        <br class="clear">
+                    </div>
                     <div class="cd-templates-grid">
+                        <!-- Add "Select All" checkbox in a header row -->
+                        <div class="cd-template-header">
+                            <div class="cd-template-checkbox-header">
+                                <input type="checkbox" id="cd-select-all-templates">
+                            </div>
+                            <div class="cd-template-name-header"><?php _e('Template', 'clothing-designer'); ?></div>
+                        </div>
                         <?php foreach ($templates as $template) : ?>
                             <div class="cd-template-card" data-id="<?php echo esc_attr($template->id); ?>">
+                                <!-- Add checkbox for each template -->
+                                <div class="cd-template-checkbox-container">
+                                    <input type="checkbox" class="cd-template-checkbox" value="<?php echo esc_attr($template->id); ?>">
+                                </div>
                                 <div class="cd-template-thumbnail">
                                     <?php if (!empty($template->thumbnail_url)) : ?>
                                         <img src="<?php echo esc_url($template->thumbnail_url); ?>" alt="<?php echo esc_attr($template->title); ?>">
@@ -657,6 +682,9 @@ class CD_Admin {
                         <!-- Table content -->
                         <thead>
                             <tr>
+                                <th class="check-column">
+                                    <input type="checkbox" id="cd-select-all-designs">
+                                </th>
                                 <th><?php echo __('Preview', 'clothing-designer'); ?></th>
                                 <th><?php echo __('Template', 'clothing-designer'); ?></th>
                                 <th><?php echo __('User', 'clothing-designer'); ?></th>
@@ -667,6 +695,9 @@ class CD_Admin {
                         <tbody>
                             <?php foreach ($designs as $design) : ?>
                                 <tr>
+                                    <td>
+                                        <input type="checkbox" class="cd-design-checkbox" value="<?php echo esc_attr($design->id); ?>">
+                                    </td>
                                     <td>
                                         <?php if (!empty($design->preview_url)) : ?>
                                             <img src="<?php echo esc_url($design->preview_url); ?>" alt="<?php echo __('Design Preview', 'clothing-designer'); ?>" style="max-width: 100px; max-height: 100px;">
@@ -1162,6 +1193,139 @@ class CD_Admin {
             echo '<p class="description">' . __('When checked, the API key entered in the field above will be used instead of the environment variable.', 'clothing-designer') . '</p>';
         } else {
             echo '<p class="description">' . __('No environment variable detected. This option only applies when an environment variable is set.', 'clothing-designer') . '</p>';
+        }
+    }
+    
+    /**
+     * Ajax bulk delete templates.
+     */
+    public function ajax_bulk_delete_templates() {
+        // Check nonce
+        check_ajax_referer(CD_ADMIN_NONCE, 'nonce');
+        
+        // Check permissions
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Permission denied', 'clothing-designer')));
+            return;
+        }
+        
+        // Get template IDs
+        $template_ids = isset($_POST['template_ids']) ? array_map('intval', $_POST['template_ids']) : array();
+        
+        if (empty($template_ids)) {
+            wp_send_json_error(array('message' => __('No templates selected', 'clothing-designer')));
+            return;
+        }
+        
+        global $wpdb;
+        $templates_table = $wpdb->prefix . 'cd_templates';
+        $template_views_table = $wpdb->prefix . 'cd_template_views';
+        
+        // Start transaction
+        $wpdb->query('START TRANSACTION');
+        
+        try {
+            // Delete template views
+            $placeholders = implode(',', array_fill(0, count($template_ids), '%d'));
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM $template_views_table WHERE template_id IN ($placeholders)",
+                $template_ids
+            ));
+            
+            // Delete templates
+            $result = $wpdb->query($wpdb->prepare(
+                "DELETE FROM $templates_table WHERE id IN ($placeholders)",
+                $template_ids
+            ));
+            
+            if ($result === false) {
+                throw new Exception($wpdb->last_error);
+            }
+            
+            $wpdb->query('COMMIT');
+            
+            wp_send_json_success(array(
+                'message' => sprintf(__('%d templates deleted successfully', 'clothing-designer'), count($template_ids))
+            ));
+        } catch (Exception $e) {
+            $wpdb->query('ROLLBACK');
+            wp_send_json_error(array('message' => $e->getMessage()));
+        }
+    }
+
+    /**
+     * Ajax bulk delete designs.
+     */
+    public function ajax_bulk_delete_designs() {
+        // Check nonce
+        check_ajax_referer(CD_ADMIN_NONCE, 'nonce');
+        
+        // Check permissions
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Permission denied', 'clothing-designer')));
+            return;
+        }
+        
+        // Get design IDs
+        $design_ids = isset($_POST['design_ids']) ? array_map('intval', $_POST['design_ids']) : array();
+        
+        if (empty($design_ids)) {
+            wp_send_json_error(array('message' => __('No designs selected', 'clothing-designer')));
+            return;
+        }
+        
+        global $wpdb;
+        $designs_table = $wpdb->prefix . 'cd_designs';
+        
+        // First, get preview URLs to delete files
+        $placeholders = implode(',', array_fill(0, count($design_ids), '%d'));
+        $designs = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, preview_url, is_chunked FROM $designs_table WHERE id IN ($placeholders)",
+            $design_ids
+        ));
+        
+        // Start transaction
+        $wpdb->query('START TRANSACTION');
+        
+        try {
+            foreach ($designs as $design) {
+                // Delete preview image if exists
+                if (!empty($design->preview_url)) {
+                    $upload_dir = wp_upload_dir();
+                    $file_path = str_replace($upload_dir['baseurl'], $upload_dir['basedir'], $design->preview_url);
+                    
+                    if (file_exists($file_path)) {
+                        @unlink($file_path);
+                    }
+                }
+                
+                // Delete chunked data file if exists
+                if ($design->is_chunked) {
+                    $file_path = CD_UPLOADS_DIR . 'designs/design-' . $design->id . '.json';
+                    if (file_exists($file_path)) {
+                        @unlink($file_path);
+                    }
+                }
+            }
+            
+            // Delete designs from database
+            $result = $wpdb->query($wpdb->prepare(
+                "DELETE FROM $designs_table WHERE id IN ($placeholders)",
+                $design_ids
+            ));
+            
+            if ($result === false) {
+                throw new Exception($wpdb->last_error);
+            }
+            
+            $wpdb->query('COMMIT');
+            
+            wp_send_json_success(array(
+                'message' => sprintf(__('%d designs deleted successfully', 'clothing-designer'), count($design_ids))
+            ));
+        } catch (Exception $e) {
+            $wpdb->query('ROLLBACK');
+            wp_send_json_error(array('message' => $e->getMessage()));
         }
     }
 

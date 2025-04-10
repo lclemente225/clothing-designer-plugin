@@ -79,6 +79,30 @@
     padding-top: 20px;
 }
 
+/* Template grid checkbox styling */
+.cd-template-header {
+    display: flex;
+    margin-bottom: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid #ddd;
+    font-weight: bold;
+}
+
+.cd-template-checkbox-header {
+    width: 30px;
+}
+
+.cd-template-checkbox-container {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    background: rgba(255,255,255,0.7);
+    padding: 5px;
+    border-radius: 3px;
+}
+
+
 /* Templates grid */
 .cd-templates-grid {
     display: grid;
@@ -88,6 +112,7 @@
 }
 
 .cd-template-card {
+    position: relative;
     background-color: #fff;
     border: 1px solid #ddd;
     border-radius: 4px;
